@@ -1,0 +1,332 @@
+'use client'
+
+import { useParams, useRouter } from 'next/navigation'
+import { DashboardLayout } from '@/components/layout/DashboardLayout'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { useGetProjectByIdQuery, useDeleteProjectMutation } from '@/lib/api/projectApi'
+import { useGetSprintsQuery } from '@/lib/api/sprintApi'
+import { useAuth } from '@/hooks/useAuth'
+import { ArrowLeft, Edit, Trash2, Plus, Calendar, DollarSign, User } from 'lucide-react'
+import Link from 'next/link'
+import { useState } from 'react'
+
+export default function ProjectDetailPage() {
+  const params = useParams()
+  const router = useRouter()
+  const projectId = params.id as string
+  const { user, isAdminOrManager } = useAuth()
+  const { data, isLoading } = useGetProjectByIdQuery(projectId)
+  const { data: sprintsData } = useGetSprintsQuery({ projectId })
+  const [deleteProject, { isLoading: isDeleting }] = useDeleteProjectMutation()
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+
+  const project = data?.data
+  const sprints = sprintsData?.data || []
+
+  const handleDelete = async () => {
+    try {
+      await deleteProject(projectId).unwrap()
+      router.push('/projects')
+    } catch (error) {
+      console.error('Failed to delete project:', error)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <DashboardLayout>
+        <div className="text-center py-12">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
+          <p className="mt-4 text-muted-foreground">Loading project...</p>
+        </div>
+      </DashboardLayout>
+    )
+  }
+
+  if (!project) {
+    return (
+      <DashboardLayout>
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">Project not found</p>
+          <Link href="/projects">
+            <Button variant="outline" className="mt-4">Back to Projects</Button>
+          </Link>
+        </div>
+      </DashboardLayout>
+    )
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'active':
+        return 'bg-green-100 text-green-800'
+      case 'completed':
+        return 'bg-blue-100 text-blue-800'
+      case 'archived':
+        return 'bg-gray-100 text-gray-800'
+      default:
+        return 'bg-yellow-100 text-yellow-800'
+    }
+  }
+
+  return (
+    <DashboardLayout>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Link href="/projects">
+              <Button variant="ghost" size="icon">
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            </Link>
+            <div>
+              <h1 className="text-3xl font-bold">{project.title}</h1>
+              <p className="text-muted-foreground">{project.client}</p>
+            </div>
+          </div>
+          {isAdminOrManager && (
+            <div className="flex gap-2">
+              <Link href={`/projects/${projectId}/edit`}>
+                <Button variant="outline" className="gap-2">
+                  <Edit className="h-4 w-4" />
+                  Edit
+                </Button>
+              </Link>
+              <Button
+                variant="destructive"
+                className="gap-2"
+                onClick={() => setShowDeleteConfirm(true)}
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* Delete Confirmation */}
+        {showDeleteConfirm && (
+          <Card className="border-destructive">
+            <CardHeader>
+              <CardTitle>Delete Project</CardTitle>
+              <CardDescription>
+                Are you sure you want to delete this project? This action cannot be undone.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex gap-2">
+              <Button
+                variant="destructive"
+                onClick={handleDelete}
+                disabled={isDeleting}
+              >
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </Button>
+              <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
+                Cancel
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        <div className="grid gap-6 lg:grid-cols-3">
+          {/* Main Content */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Description */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Description</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">
+                  {project.description || 'No description provided.'}
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Sprints */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Sprints</CardTitle>
+                    <CardDescription>Project milestones and sprints</CardDescription>
+                  </div>
+                  {isAdminOrManager && (
+                    <Link href={`/projects/${projectId}/sprints/new`}>
+                      <Button size="sm" className="gap-2">
+                        <Plus className="h-4 w-4" />
+                        New Sprint
+                      </Button>
+                    </Link>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                {sprints.length > 0 ? (
+                  <div className="space-y-4">
+                    {sprints.map((sprint) => (
+                      <Link
+                        key={sprint.id}
+                        href={`/sprints/${sprint.id}`}
+                        className="block p-4 rounded-lg border hover:bg-accent transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <h3 className="font-semibold">
+                              Sprint {sprint.sprintNumber}: {sprint.title}
+                            </h3>
+                            <p className="text-sm text-muted-foreground">
+                              {new Date(sprint.startDate).toLocaleDateString()} -{' '}
+                              {new Date(sprint.endDate).toLocaleDateString()}
+                            </p>
+                            {sprint.stats && (
+                              <div className="mt-2">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-xs text-muted-foreground">Progress</span>
+                                  <span className="text-xs font-medium">
+                                    {sprint.stats.progressPercentage.toFixed(0)}%
+                                  </span>
+                                </div>
+                                <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-primary transition-all"
+                                    style={{ width: `${sprint.stats.progressPercentage}%` }}
+                                  />
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {sprint.stats.completedTasks} of {sprint.stats.totalTasks} tasks completed
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No sprints yet. {isAdminOrManager && 'Create your first sprint!'}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Sidebar */}
+          <div className="space-y-6">
+            {/* Project Info */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Project Details</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <p className="text-sm font-medium mb-1">Status</p>
+                  <Badge className={getStatusColor(project.status)}>
+                    {project.status}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-sm font-medium mb-1 flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    Timeline
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {new Date(project.startDate).toLocaleDateString()} -{' '}
+                    {new Date(project.endDate).toLocaleDateString()}
+                  </p>
+                </div>
+                {project.budget && (
+                  <div>
+                    <p className="text-sm font-medium mb-1 flex items-center gap-2">
+                      <DollarSign className="h-4 w-4" />
+                      Budget
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      ${project.budget.toLocaleString()}
+                    </p>
+                  </div>
+                )}
+                {project.creator && (
+                  <div>
+                    <p className="text-sm font-medium mb-1 flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      Created By
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {project.creator.name}
+                    </p>
+                  </div>
+                )}
+                {project.manager && (
+                  <div>
+                    <p className="text-sm font-medium mb-1 flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      Manager
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {project.manager.name}
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Progress */}
+            {project.stats && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Progress</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Overall Progress</span>
+                      <span className="text-sm font-medium">
+                        {project.stats.progressPercentage.toFixed(0)}%
+                      </span>
+                    </div>
+                    <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary transition-all"
+                        style={{ width: `${project.stats.progressPercentage}%` }}
+                      />
+                    </div>
+                    <div className="pt-2 space-y-1 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Total Tasks</span>
+                        <span className="font-medium">{project.stats.totalTasks}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Completed</span>
+                        <span className="font-medium text-green-600">
+                          {project.stats.completedTasks}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">In Progress</span>
+                        <span className="font-medium text-blue-600">
+                          {project.stats.inProgressTasks}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Remaining</span>
+                        <span className="font-medium">
+                          {project.stats.tasksRemaining}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
+      </div>
+    </DashboardLayout>
+  )
+}
+
