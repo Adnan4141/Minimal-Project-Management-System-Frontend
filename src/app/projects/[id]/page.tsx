@@ -5,12 +5,15 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { useGetProjectByIdQuery, useDeleteProjectMutation } from '@/lib/api/projectApi'
-import { useGetSprintsQuery } from '@/lib/api/sprintApi'
+import { useGetSprintsQuery, useCreateSprintMutation } from '@/lib/api/sprintApi'
 import { useAuth } from '@/hooks/useAuth'
-import { ArrowLeft, Edit, Trash2, Plus, Calendar, DollarSign, User } from 'lucide-react'
+import { ArrowLeft, Edit, Trash2, Plus, Calendar, DollarSign, User, X, Loader2, AlertCircle, FileText } from 'lucide-react'
 import Link from 'next/link'
 import { useState } from 'react'
+import { DatePickerInput } from '@/components/ui/date-picker'
 
 export default function ProjectDetailPage() {
   const params = useParams()
@@ -20,10 +23,29 @@ export default function ProjectDetailPage() {
   const { data, isLoading } = useGetProjectByIdQuery(projectId)
   const { data: sprintsData } = useGetSprintsQuery({ projectId })
   const [deleteProject, { isLoading: isDeleting }] = useDeleteProjectMutation()
+  const [createSprint, { isLoading: isCreatingSprint }] = useCreateSprintMutation()
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showCreateSprintModal, setShowCreateSprintModal] = useState(false)
+  const [sprintFormData, setSprintFormData] = useState({
+    title: '',
+    startDate: '',
+    endDate: '',
+    description: '',
+  })
+  const [sprintError, setSprintError] = useState('')
 
   const project = data?.data
   const sprints = sprintsData?.data || []
+
+  // Helper function to format date to YYYY-MM-DD for HTML date inputs
+  const formatDateForInput = (date: string | Date): string => {
+    if (!date) return ''
+    const d = typeof date === 'string' ? new Date(date) : date
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
 
   const handleDelete = async () => {
     try {
@@ -31,6 +53,68 @@ export default function ProjectDetailPage() {
       router.push('/projects')
     } catch (error) {
       console.error('Failed to delete project:', error)
+    }
+  }
+
+  const handleCreateSprint = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSprintError('')
+
+    if (!sprintFormData.title || !sprintFormData.startDate || !sprintFormData.endDate) {
+      setSprintError('Please fill in all required fields')
+      return
+    }
+
+    if (!project) {
+      setSprintError('Project not found')
+      return
+    }
+
+    const sprintStartDate = new Date(sprintFormData.startDate)
+    const sprintEndDate = new Date(sprintFormData.endDate)
+    const projectStartDate = new Date(project.startDate)
+    const projectEndDate = new Date(project.endDate)
+
+    // Reset time to compare dates only
+    sprintStartDate.setHours(0, 0, 0, 0)
+    sprintEndDate.setHours(0, 0, 0, 0)
+    projectStartDate.setHours(0, 0, 0, 0)
+    projectEndDate.setHours(0, 0, 0, 0)
+
+    if (sprintStartDate >= sprintEndDate) {
+      setSprintError('End date must be after start date')
+      return
+    }
+
+    if (sprintStartDate < projectStartDate) {
+      setSprintError(`Start date must be on or after project start date (${formatDateForInput(project.startDate)})`)
+      return
+    }
+
+    if (sprintEndDate > projectEndDate) {
+      setSprintError(`End date must be on or before project end date (${formatDateForInput(project.endDate)})`)
+      return
+    }
+
+    try {
+      await createSprint({
+        title: sprintFormData.title,
+        startDate: sprintFormData.startDate,
+        endDate: sprintFormData.endDate,
+        description: sprintFormData.description || undefined,
+        projectId,
+      }).unwrap()
+      
+      setShowCreateSprintModal(false)
+      setSprintFormData({
+        title: '',
+        startDate: '',
+        endDate: '',
+        description: '',
+      })
+      setSprintError('')
+    } catch (err: any) {
+      setSprintError(err.data?.message || 'Failed to create sprint')
     }
   }
 
@@ -70,6 +154,13 @@ export default function ProjectDetailPage() {
         return 'bg-yellow-100 text-yellow-800'
     }
   }
+
+
+
+
+
+
+
 
   return (
     <DashboardLayout>
@@ -155,12 +246,14 @@ export default function ProjectDetailPage() {
                     <CardDescription>Project milestones and sprints</CardDescription>
                   </div>
                   {isAdminOrManager && (
-                    <Link href={`/projects/${projectId}/sprints/new`}>
-                      <Button size="sm" className="gap-2">
-                        <Plus className="h-4 w-4" />
-                        New Sprint
-                      </Button>
-                    </Link>
+                    <Button 
+                      size="sm" 
+                      className="gap-2"
+                      onClick={() => setShowCreateSprintModal(true)}
+                    >
+                      <Plus className="h-4 w-4" />
+                      New Sprint
+                    </Button>
                   )}
                 </div>
               </CardHeader>
@@ -168,42 +261,50 @@ export default function ProjectDetailPage() {
                 {sprints.length > 0 ? (
                   <div className="space-y-4">
                     {sprints.map((sprint) => (
-                      <Link
+                      <div
                         key={sprint.id}
-                        href={`/sprints/${sprint.id}`}
-                        className="block p-4 rounded-lg border hover:bg-accent transition-colors"
+                        className="p-4 rounded-lg border hover:bg-accent transition-colors"
                       >
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <h3 className="font-semibold">
-                              Sprint {sprint.sprintNumber}: {sprint.title}
-                            </h3>
-                            <p className="text-sm text-muted-foreground">
-                              {new Date(sprint.startDate).toLocaleDateString()} -{' '}
-                              {new Date(sprint.endDate).toLocaleDateString()}
-                            </p>
-                            {sprint.stats && (
-                              <div className="mt-2">
-                                <div className="flex items-center justify-between mb-1">
-                                  <span className="text-xs text-muted-foreground">Progress</span>
-                                  <span className="text-xs font-medium">
-                                    {sprint.stats.progressPercentage.toFixed(0)}%
-                                  </span>
+                        <div className="flex items-center justify-between gap-4">
+                          <Link href={`/sprints/${sprint.id}`} className="flex-1">
+                            <div>
+                              <h3 className="font-semibold">
+                                Sprint {sprint.sprintNumber}: {sprint.title}
+                              </h3>
+                              <p className="text-sm text-muted-foreground">
+                                {new Date(sprint.startDate).toLocaleDateString()} -{' '}
+                                {new Date(sprint.endDate).toLocaleDateString()}
+                              </p>
+                              {sprint.stats && (
+                                <div className="mt-2">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="text-xs text-muted-foreground">Progress</span>
+                                    <span className="text-xs font-medium">
+                                      {sprint.stats.progressPercentage.toFixed(0)}%
+                                    </span>
+                                  </div>
+                                  <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full bg-primary transition-all"
+                                      style={{ width: `${sprint.stats.progressPercentage}%` }}
+                                    />
+                                  </div>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    {sprint.stats.completedTasks} of {sprint.stats.totalTasks} tasks completed
+                                  </p>
                                 </div>
-                                <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                                  <div
-                                    className="h-full bg-primary transition-all"
-                                    style={{ width: `${sprint.stats.progressPercentage}%` }}
-                                  />
-                                </div>
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  {sprint.stats.completedTasks} of {sprint.stats.totalTasks} tasks completed
-                                </p>
-                              </div>
-                            )}
-                          </div>
+                              )}
+                            </div>
+                          </Link>
+                          {isAdminOrManager && (
+                            <Link href={`/sprints/${sprint.id}/edit`}>
+                              <Button variant="ghost" size="icon" className="flex-shrink-0">
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            </Link>
+                          )}
                         </div>
-                      </Link>
+                      </div>
                     ))}
                   </div>
                 ) : (
@@ -225,7 +326,7 @@ export default function ProjectDetailPage() {
               <CardContent className="space-y-4">
                 <div>
                   <p className="text-sm font-medium mb-1">Status</p>
-                  <Badge className={getStatusColor(project.status)}>
+                  <Badge className={`${getStatusColor(project.status)} capitalize`}>
                     {project.status}
                   </Badge>
                 </div>
@@ -309,13 +410,13 @@ export default function ProjectDetailPage() {
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">In Progress</span>
                         <span className="font-medium text-blue-600">
-                          {project.stats.inProgressTasks}
+                         {project.stats.inProgressTasks ?? 0} 
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Remaining</span>
                         <span className="font-medium">
-                          {project.stats.tasksRemaining}
+                          {project.stats.tasksRemaining ?? 0}
                         </span>
                       </div>
                     </div>
@@ -326,6 +427,142 @@ export default function ProjectDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Create Sprint Modal */}
+      {showCreateSprintModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowCreateSprintModal(false)}
+          />
+          <div className="relative z-50 w-full max-w-2xl mx-4 bg-background border rounded-lg shadow-lg p-6 max-h-[90vh] overflow-y-auto scrollbar-hide overscroll-contain">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold">Create New Sprint</h2>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowCreateSprintModal(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <form onSubmit={handleCreateSprint} className="space-y-4">
+              {sprintError && (
+                <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4" />
+                  {sprintError}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label htmlFor="sprint-title" className="text-sm font-medium flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Sprint Title <span className="text-destructive">*</span>
+                </label>
+                <Input
+                  id="sprint-title"
+                  value={sprintFormData.title}
+                  onChange={(e) => setSprintFormData({ ...sprintFormData, title: e.target.value })}
+                  placeholder="e.g., Sprint 1: User Authentication"
+                  required
+                  className="transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label htmlFor="sprint-start-date" className="text-sm font-medium flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    Start Date <span className="text-destructive">*</span>
+                  </label>
+                  <DatePickerInput
+                    id="sprint-start-date"
+                    value={sprintFormData.startDate}
+                    onChange={(date) => setSprintFormData({ ...sprintFormData, startDate: date })}
+                    placeholder="Select start date"
+                    minDate={project ? project.startDate : undefined}
+                    maxDate={project ? project.endDate : undefined}
+                    required
+                  />
+                  {project && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Project timeline: {formatDateForInput(project.startDate)} - {formatDateForInput(project.endDate)}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="sprint-end-date" className="text-sm font-medium flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    End Date <span className="text-destructive">*</span>
+                  </label>
+                  <DatePickerInput
+                    id="sprint-end-date"
+                    value={sprintFormData.endDate}
+                    onChange={(date) => setSprintFormData({ ...sprintFormData, endDate: date })}
+                    placeholder="Select end date"
+                    minDate={sprintFormData.startDate || (project ? project.startDate : undefined)}
+                    maxDate={project ? project.endDate : undefined}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="sprint-description" className="text-sm font-medium flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Description
+                </label>
+                <Textarea
+                  id="sprint-description"
+                  value={sprintFormData.description}
+                  onChange={(e) => setSprintFormData({ ...sprintFormData, description: e.target.value })}
+                  placeholder="Enter sprint description..."
+                  rows={4}
+                  className="transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setShowCreateSprintModal(false)
+                    setSprintFormData({
+                      title: '',
+                      startDate: '',
+                      endDate: '',
+                      description: '',
+                    })
+                    setSprintError('')
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isCreatingSprint}
+                  className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary"
+                >
+                  {isCreatingSprint ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create Sprint
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   )
 }
