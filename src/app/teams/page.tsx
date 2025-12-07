@@ -337,7 +337,7 @@ export default function TeamsPage() {
                             </div>
                           </div>
                           
-                          <div className="mt-auto pt-3 space-y-2 flex-shrink-0">
+                          <div className="mt-auto pt-3 flex flex-col  space-y-2 flex-shrink-0">
                             {isAdminOrManager && user.id !== currentUser?.id && (
                               <div className="flex gap-2 h-8">
                                 {!user.isActive ? (

@@ -142,19 +142,24 @@ export default function NewTeamMemberPage() {
     <DashboardLayout>
       <div className="space-y-6">
         
-        <div className="flex items-center gap-4">
-          <Link href="/teams">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-3xl font-bold">Add Team Member</h1>
-            <p className="text-muted-foreground">Create a new team member account</p>
+        <div className="flex items-center justify-center">
+          <div className="w-full max-w-2xl">
+            <div className="flex items-center gap-4">
+              <Link href="/teams">
+                <Button variant="ghost" size="icon">
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+              </Link>
+              <div>
+                <h1 className="text-3xl font-bold">Add Team Member</h1>
+                <p className="text-muted-foreground">Create a new team member account</p>
+              </div>
+            </div>
           </div>
         </div>
 
-        <Card className="max-w-2xl border-2 shadow-lg hover:shadow-xl transition-shadow duration-300">
+        <div className="flex items-center justify-center">
+          <Card className="w-full max-w-2xl border-2 shadow-lg hover:shadow-xl transition-shadow duration-300">
           <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10 border-b">
             <CardTitle className="flex items-center gap-2 text-xl">
               <UserPlus className="h-5 w-5 text-primary" />
@@ -352,11 +357,11 @@ export default function NewTeamMemberPage() {
                       <SelectValue placeholder="Select role" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Member">👤 Member</SelectItem>
+                      <SelectItem value="Member"> Member</SelectItem>
                       {canCreateAdminOrManager && (
                         <>
-                          <SelectItem value="Manager">👔 Manager</SelectItem>
-                          <SelectItem value="Admin">👑 Admin</SelectItem>
+                          <SelectItem value="Manager"> Manager</SelectItem>
+                          <SelectItem value="Admin"> Admin</SelectItem>
                         </>
                       )}
                     </SelectContent>
@@ -435,6 +440,7 @@ export default function NewTeamMemberPage() {
             </form>
           </CardContent>
         </Card>
+        </div>
       </div>
     </DashboardLayout>
   )

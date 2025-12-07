@@ -336,10 +336,12 @@ export default function NewTaskPage() {
                   <label htmlFor="dueDate" className="text-sm font-semibold flex items-center gap-2 group-hover:text-primary transition-colors">
                     <Calendar className="h-4 w-4" />
                     Due Date
+                    <span className="text-destructive">*</span>
                   </label>
                   <DatePickerInput
                     id="dueDate"
                     value={formData.dueDate}
+                    required
                     onChange={(date) => setFormData({ ...formData, dueDate: date })}
                     placeholder="Select due date"
                     minDate={new Date().toISOString().split('T')[0]}
