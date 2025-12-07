@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -10,7 +10,7 @@ import { useAcceptInviteMutation } from '@/lib/api/authApi'
 import { Mail, Lock, CheckCircle, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 
-export default function AcceptInvitePage() {
+function AcceptInviteContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const token = searchParams.get('token')
@@ -175,6 +175,27 @@ export default function AcceptInvitePage() {
         </Card>
       </div>
     </DashboardLayout>
+  )
+}
+
+export default function AcceptInvitePage() {
+  return (
+    <Suspense fallback={
+      <DashboardLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <Card className="max-w-md w-full">
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
+                <p className="mt-4 text-sm text-muted-foreground">Loading...</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </DashboardLayout>
+    }>
+      <AcceptInviteContent />
+    </Suspense>
   )
 }
 

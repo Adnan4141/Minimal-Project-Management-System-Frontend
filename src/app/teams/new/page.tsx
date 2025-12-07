@@ -97,14 +97,15 @@ export default function NewTeamMemberPage() {
 
         if (result.success && result.data) {
           setSuccess(true)
-          if (result.data.inviteToken || result.data.inviteUrl) {
+          const data = result.data
+          if (data.inviteToken || data.inviteUrl) {
             setInviteResult({
-              inviteToken: result.data.inviteToken,
-              inviteUrl: result.data.inviteUrl,
+              inviteToken: data.inviteToken,
+              inviteUrl: data.inviteUrl,
             })
-          } else {
+          } else if (data.id) {
             setTimeout(() => {
-              router.push(`/teams/${result.data.id}`)
+              router.push(`/teams/${data.id}`)
             }, 2000)
           }
         }
@@ -119,10 +120,13 @@ export default function NewTeamMemberPage() {
         }).unwrap()
 
         if (result.success && result.data) {
-          setSuccess(true)
-          setTimeout(() => {
-            router.push(`/teams/${result.data.id}`)
-          }, 2000)
+          const data = result.data
+          if (data.id) {
+            setSuccess(true)
+            setTimeout(() => {
+              router.push(`/teams/${data.id}`)
+            }, 2000)
+          }
         }
       }
     } catch (err: any) {

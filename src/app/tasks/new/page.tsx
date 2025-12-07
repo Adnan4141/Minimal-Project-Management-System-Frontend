@@ -26,7 +26,7 @@ import { DatePickerInput } from '@/components/ui/date-picker'
 
 export default function NewTaskPage() {
   const router = useRouter()
-  const { isAdminOrManager } = useAuth()
+  const { isAdminOrManager, user: currentUser } = useAuth()
   const [createTask, { isLoading }] = useCreateTaskMutation()
   const { data: projectsData } = useGetProjectsQuery({ page: 1, limit: 100 })
   const { data: usersData } = useGetUsersQuery({ limit: 100 })
@@ -39,7 +39,18 @@ export default function NewTaskPage() {
 
   const projects = projectsData?.data?.projects || []
   const sprints = sprintsData?.data || []
-  const users = usersData?.data?.users || []
+  const allUsers = usersData?.data?.users || []
+  
+  const users = allUsers.filter((user) => {
+    if (!user.isActive) return false
+    if (currentUser?.role === 'Admin') {
+      return user.role === 'Manager' || user.role === 'Member'
+    }
+    if (currentUser?.role === 'Manager') {
+      return user.role === 'Manager' || user.role === 'Member'
+    }
+    return false
+  })
 
 
   
