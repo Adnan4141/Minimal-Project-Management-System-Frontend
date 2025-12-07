@@ -32,13 +32,13 @@ export function Modal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
+      
       <div
         className="fixed inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}
       />
       
-      {/* Modal */}
+      
       <div className="relative z-50 w-full max-w-md mx-4 bg-background border rounded-lg shadow-lg p-6">
         <h2 className="text-xl font-semibold mb-2">{title}</h2>
         <p className="text-muted-foreground mb-6">{description}</p>

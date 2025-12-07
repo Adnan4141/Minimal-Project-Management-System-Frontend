@@ -37,7 +37,7 @@ export default function ProjectDetailPage() {
   const project = data?.data
   const sprints = sprintsData?.data || []
 
-  // Helper function to format date to YYYY-MM-DD for HTML date inputs
+
   const formatDateForInput = (date: string | Date): string => {
     if (!date) return ''
     const d = typeof date === 'string' ? new Date(date) : date
@@ -75,7 +75,7 @@ export default function ProjectDetailPage() {
     const projectStartDate = new Date(project.startDate)
     const projectEndDate = new Date(project.endDate)
 
-    // Reset time to compare dates only
+
     sprintStartDate.setHours(0, 0, 0, 0)
     sprintEndDate.setHours(0, 0, 0, 0)
     projectStartDate.setHours(0, 0, 0, 0)
@@ -165,7 +165,7 @@ export default function ProjectDetailPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Header */}
+        
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link href="/projects">
@@ -198,7 +198,7 @@ export default function ProjectDetailPage() {
           )}
         </div>
 
-        {/* Delete Confirmation */}
+        
         {showDeleteConfirm && (
           <Card className="border-destructive">
             <CardHeader>
@@ -223,9 +223,9 @@ export default function ProjectDetailPage() {
         )}
 
         <div className="grid gap-6 lg:grid-cols-3">
-          {/* Main Content */}
+          
           <div className="lg:col-span-2 space-y-6">
-            {/* Description */}
+            
             <Card>
               <CardHeader>
                 <CardTitle>Description</CardTitle>
@@ -237,7 +237,7 @@ export default function ProjectDetailPage() {
               </CardContent>
             </Card>
 
-            {/* Sprints */}
+            
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -316,9 +316,9 @@ export default function ProjectDetailPage() {
             </Card>
           </div>
 
-          {/* Sidebar */}
+          
           <div className="space-y-6">
-            {/* Project Info */}
+            
             <Card>
               <CardHeader>
                 <CardTitle>Project Details</CardTitle>
@@ -376,7 +376,7 @@ export default function ProjectDetailPage() {
               </CardContent>
             </Card>
 
-            {/* Progress */}
+            
             {project.stats && (
               <Card>
                 <CardHeader>
@@ -428,7 +428,7 @@ export default function ProjectDetailPage() {
         </div>
       </div>
 
-      {/* Create Sprint Modal */}
+      
       {showCreateSprintModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div
