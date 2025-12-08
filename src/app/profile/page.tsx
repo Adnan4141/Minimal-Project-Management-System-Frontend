@@ -139,7 +139,6 @@ export default function ProfilePage() {
       const result = await updateUser({
         id: user.id,
         name: profileData.name,
-        email: profileData.email,
         department: profileData.department || undefined,
         skills: profileData.skills,
       }).unwrap()
@@ -267,9 +266,13 @@ export default function ProfilePage() {
                       id="email"
                       type="email"
                       value={profileData.email}
-                      onChange={(e) => handleProfileChange('email', e.target.value)}
-                      required
+                      disabled
+                      readOnly
+                      className="bg-muted cursor-not-allowed"
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Email address cannot be changed
+                    </p>
                     {errors.email && (
                       <p className="text-sm text-destructive">{errors.email}</p>
                     )}

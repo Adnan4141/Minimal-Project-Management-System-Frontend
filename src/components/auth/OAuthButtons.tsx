@@ -72,19 +72,54 @@ export function OAuthButtons({ onSuccess, onError, disabled = false }: OAuthButt
 
   useEffect(() => {
     if (config.oauth.google.clientId) {
-      const style = document.createElement('style')
+      const styleId = 'google-login-width-fix'
+      let style = document.getElementById(styleId) as HTMLStyleElement
+      
+      if (!style) {
+        style = document.createElement('style')
+        style.id = styleId
+        document.head.appendChild(style)
+      }
+      
       style.textContent = `
-        div[id*="google-login"] {
-          width: 100% !important;
-        }
-        div[id*="google-login"] > div {
+        div[id*="google-login"],
+        div[id*="google-login"] > div,
+        div[id*="google-login"] > div > div,
+        div[id*="google-login"] iframe,
+        div[id*="google-login"] button {
           width: 100% !important;
           max-width: 100% !important;
+          min-width: 100% !important;
+        }
+        div[id*="google-login"] {
+          display: flex !important;
+          flex: 1 1 100% !important;
+        }
+        div[id*="google-login"] > div {
+          display: flex !important;
+          flex: 1 1 100% !important;
+          width: 100% !important;
         }
       `
-      document.head.appendChild(style)
+      
+      // Also apply styles after a delay to catch async rendering
+      const timeoutId = setTimeout(() => {
+        const googleButton = document.querySelector('div[id*="google-login"]')
+        if (googleButton) {
+          (googleButton as HTMLElement).style.width = '100%'
+          const children = googleButton.querySelectorAll('div')
+          children.forEach((child) => {
+            (child as HTMLElement).style.width = '100%'
+            ;(child as HTMLElement).style.maxWidth = '100%'
+          })
+        }
+      }, 100)
+      
       return () => {
-        document.head.removeChild(style)
+        clearTimeout(timeoutId)
+        if (style && style.parentNode) {
+          style.parentNode.removeChild(style)
+        }
       }
     }
   }, [])
@@ -94,22 +129,30 @@ export function OAuthButtons({ onSuccess, onError, disabled = false }: OAuthButt
       {config.oauth.google.clientId && (
         <div 
           className={`w-full ${disabled || isLoading ? 'pointer-events-none opacity-50' : ''}`}
-          style={{ width: '100%', minWidth: '100%' }}
+          style={{ 
+            width: '100%', 
+            minWidth: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
         >
           <div 
             style={{ 
               width: '100%', 
-              minWidth: '100%', 
+              minWidth: '100%',
+              maxWidth: '100%',
               display: 'flex', 
-              justifyContent: 'stretch',
+              flex: '1 1 100%',
             }}
             className="w-full"
           >
             <div 
               style={{ 
-                width: '100%', 
+                width: '100%',
+                minWidth: '100%',
+                maxWidth: '100%',
                 flex: '1 1 100%',
-                minWidth: 0
+                display: 'flex',
               }}
               className="w-full"
             >
