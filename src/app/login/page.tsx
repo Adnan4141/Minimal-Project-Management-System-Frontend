@@ -4,9 +4,10 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
-import { useOAuthMutation } from '@/lib/api/authApi'
+import { useOAuthMutation, useGetMeQuery } from '@/lib/api/authApi'
 import { useAppDispatch } from '@/lib/hooks'
 import { setCredentials } from '@/lib/slices/authSlice'
+import { apiSlice } from '@/lib/api/apiSlice'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
@@ -23,6 +24,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [pendingMessage, setPendingMessage] = useState('')
+  
+  const { refetch: refetchMe } = useGetMeQuery(undefined, {
+    skip: true,
+  })
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -32,23 +37,34 @@ export default function LoginPage() {
   }, [])
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && !isLoading && user) {
       router.push('/dashboard')
     }
-  }, [isAuthenticated, router])
+  }, [isAuthenticated, isLoading, user, router])
   
 
   const handleOAuthSuccess = async (provider: 'google' | 'facebook', token: string) => {
     try {
       setError('')
+      
+      dispatch(apiSlice.util.invalidateTags(['User']))
+      dispatch(apiSlice.util.resetApiState())
+      
       const result = await oauth({
         provider,
         ...(provider === 'google' ? { idToken: token } : { accessToken: token }),
       }).unwrap()
-    console.log(result)
+      
       if (result.success && result.data) {
-        dispatch(setCredentials(result.data))
-        router.push('/dashboard')
+        dispatch(setCredentials({
+          user: result.data.user,
+          accessToken: result.data.accessToken,
+        }))
+        
+        setTimeout(() => {
+          refetchMe()
+          router.push('/dashboard')
+        }, 100)
       }
     } catch (err: any) {
       if (err.data?.requiresActivation) {
@@ -69,7 +85,9 @@ export default function LoginPage() {
     }
 
     const result = await login(email, password)
-    if (!result.success) {
+    if (result.success) {
+      router.push('/dashboard')
+    } else {
       setError(result.error || 'Login failed')
     }
   }

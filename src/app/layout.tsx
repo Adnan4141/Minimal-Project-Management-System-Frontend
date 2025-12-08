@@ -13,6 +13,9 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: 'Minimal Project Management System',
   description: 'A project management system with admin dashboard and user panel',
+  icons: {
+    icon: '/favicon.ico',
+  },
 }
 
 export default function RootLayout({
@@ -22,7 +25,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} font-sans antialiased`}>
+      <body className={`${inter.variable} font-sans antialiased`} suppressHydrationWarning>
         <StoreProvider>
           {config.oauth.google.clientId ? (
             <GoogleOAuthProvider clientId={config.oauth.google.clientId}>

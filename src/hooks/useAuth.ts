@@ -6,6 +6,7 @@ import {
   useLogoutMutation,
   useGetMeQuery,
 } from '@/lib/api/authApi'
+import { apiSlice } from '@/lib/api/apiSlice'
 import { useEffect } from 'react'
 
 export function useAuth() {
@@ -73,6 +74,7 @@ export function useAuth() {
       console.error('Logout API error:', error)
     } finally {
       dispatch(logoutAction())
+      dispatch(apiSlice.util.invalidateTags(['User']))
     }
   }
 
@@ -82,6 +84,13 @@ export function useAuth() {
       // Only update if the data is different to avoid unnecessary updates
       const currentUser = user
       const newUser = meData.data
+      
+      // Prevent overwriting with stale data - check if email matches current user
+      if (currentUser && currentUser.email && newUser.email && currentUser.email !== newUser.email) {
+        // Email mismatch means this is stale cached data, skip update
+        return
+      }
+      
       if (
         !currentUser ||
         currentUser.avatar !== newUser.avatar ||

@@ -4,9 +4,10 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
-import { useOAuthMutation } from '@/lib/api/authApi'
+import { useOAuthMutation, useGetMeQuery } from '@/lib/api/authApi'
 import { useAppDispatch } from '@/lib/hooks'
 import { setCredentials } from '@/lib/slices/authSlice'
+import { apiSlice } from '@/lib/api/apiSlice'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
@@ -17,7 +18,7 @@ import { config } from '@/config'
 export default function RegisterPage() {
   const router = useRouter()
   const dispatch = useAppDispatch()
-  const { register, isLoading, isAuthenticated } = useAuth()
+  const { register, isLoading, isAuthenticated, user } = useAuth()
   const [oauth, { isLoading: isOAuthLoading }] = useOAuthMutation()
   const [formData, setFormData] = useState({
     name: '',
@@ -29,27 +30,42 @@ export default function RegisterPage() {
 
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && !isLoading && user) {
       router.push('/dashboard')
     }
-  }, [isAuthenticated, router])
+  }, [isAuthenticated, isLoading, user, router])
 
-  if (isAuthenticated) {
+  if (isAuthenticated && user) {
     return null
   }
 
 
+  const { refetch: refetchMe } = useGetMeQuery(undefined, {
+    skip: true,
+  })
+
   const handleOAuthSuccess = async (provider: 'google' | 'facebook', token: string) => {
     try {
       setError('')
+      
+      dispatch(apiSlice.util.invalidateTags(['User']))
+      dispatch(apiSlice.util.resetApiState())
+      
       const result = await oauth({
         provider,
         ...(provider === 'google' ? { idToken: token } : { accessToken: token }),
       }).unwrap()
 
       if (result.success && result.data) {
-        dispatch(setCredentials(result.data))
-        router.push('/dashboard')
+        dispatch(setCredentials({
+          user: result.data.user,
+          accessToken: result.data.accessToken,
+        }))
+        
+        setTimeout(() => {
+          refetchMe()
+          router.push('/dashboard')
+        }, 100)
       }
     } catch (err: any) {
       if (err.data?.requiresActivation) {
