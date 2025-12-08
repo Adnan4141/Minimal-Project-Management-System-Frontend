@@ -70,89 +70,27 @@ export function OAuthButtons({ onSuccess, onError, disabled = false }: OAuthButt
     return null
   }
 
-  useEffect(() => {
-    if (config.oauth.google.clientId) {
-      const styleId = 'google-login-width-fix'
-      let style = document.getElementById(styleId) as HTMLStyleElement
-      
-      if (!style) {
-        style = document.createElement('style')
-        style.id = styleId
-        document.head.appendChild(style)
-      }
-      
-      style.textContent = `
-        div[id*="google-login"],
-        div[id*="google-login"] > div,
-        div[id*="google-login"] > div > div,
-        div[id*="google-login"] iframe,
-        div[id*="google-login"] button {
-          width: 100% !important;
-          max-width: 100% !important;
-          min-width: 100% !important;
-        }
-        div[id*="google-login"] {
-          display: flex !important;
-          flex: 1 1 100% !important;
-        }
-        div[id*="google-login"] > div {
-          display: flex !important;
-          flex: 1 1 100% !important;
-          width: 100% !important;
-        }
-      `
-      
-      // Also apply styles after a delay to catch async rendering
-      const timeoutId = setTimeout(() => {
-        const googleButton = document.querySelector('div[id*="google-login"]')
-        if (googleButton) {
-          (googleButton as HTMLElement).style.width = '100%'
-          const children = googleButton.querySelectorAll('div')
-          children.forEach((child) => {
-            (child as HTMLElement).style.width = '100%'
-            ;(child as HTMLElement).style.maxWidth = '100%'
-          })
-        }
-      }, 100)
-      
-      return () => {
-        clearTimeout(timeoutId)
-        if (style && style.parentNode) {
-          style.parentNode.removeChild(style)
-        }
-      }
-    }
-  }, [])
+  
 
   return (
-    <div className="flex flex-col gap-2 w-full">
-      {config.oauth.google.clientId && (
+    <div className="flex flex-col gap-2 items-center justify-center w-full">
+      { (
         <div 
           className={`w-full ${disabled || isLoading ? 'pointer-events-none opacity-50' : ''}`}
-          style={{ 
-            width: '100%', 
-            minWidth: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-          }}
+          style={{ width: '100%', minWidth: '100%' }}
         >
           <div 
             style={{ 
               width: '100%', 
-              minWidth: '100%',
-              maxWidth: '100%',
+              minWidth: '100%', 
               display: 'flex', 
-              flex: '1 1 100%',
+           
             }}
             className="w-full"
           >
             <div 
               style={{ 
-                width: '100%',
-                minWidth: '100%',
-                maxWidth: '100%',
-                flex: '1 1 100%',
-                display: 'flex',
+                width: '100%' 
               }}
               className="w-full"
             >
@@ -171,7 +109,7 @@ export function OAuthButtons({ onSuccess, onError, disabled = false }: OAuthButt
         </div>
       )}
 
-      {config.oauth.facebook.appId && (
+      { (
         <div className="w-full" style={{ width: '100%' }}>
           <Button
             type="button"
