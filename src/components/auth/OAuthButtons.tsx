@@ -121,6 +121,7 @@ export function OAuthButtons({ onSuccess, onError, disabled = false }: OAuthButt
                 theme="outline"
                 size="large"
                 text="continue_with"
+                locale="en"
               />
             </div>
           </div>
