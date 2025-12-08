@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
@@ -28,8 +28,13 @@ export default function RegisterPage() {
   const [error, setError] = useState('')
 
 
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.push('/dashboard')
+    }
+  }, [isAuthenticated, router])
+
   if (isAuthenticated) {
-    router.push('/dashboard')
     return null
   }
 
@@ -47,7 +52,11 @@ export default function RegisterPage() {
         router.push('/dashboard')
       }
     } catch (err: any) {
-      setError(err.data?.message || `${provider} registration failed`)
+      if (err.data?.requiresActivation) {
+        setError(err.data?.message || 'Your account is pending activation. Please contact an administrator to activate your account.')
+      } else {
+        setError(err.data?.message || `${provider} registration failed`)
+      }
     }
   }
 

@@ -17,7 +17,7 @@ import { config } from '@/config'
 export default function LoginPage() {
   const router = useRouter()
   const dispatch = useAppDispatch()
-  const { login, isLoading, isAuthenticated } = useAuth()
+  const { login, isLoading, isAuthenticated, user } = useAuth()
   const [oauth, { isLoading: isOAuthLoading }] = useOAuthMutation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -45,16 +45,17 @@ export default function LoginPage() {
         provider,
         ...(provider === 'google' ? { idToken: token } : { accessToken: token }),
       }).unwrap()
-
-  
-  
-
+    console.log(result)
       if (result.success && result.data) {
         dispatch(setCredentials(result.data))
         router.push('/dashboard')
       }
     } catch (err: any) {
-      setError(err.data?.message || `${provider} login failed`)
+      if (err.data?.requiresActivation) {
+        setError(err.data?.message || 'Your account is pending activation. Please contact an administrator to activate your account.')
+      } else {
+        setError(err.data?.message || `${provider} login failed`)
+      }
     }
   }
 
@@ -68,9 +69,7 @@ export default function LoginPage() {
     }
 
     const result = await login(email, password)
-    if (result.success) {
-      router.push('/dashboard')
-    } else {
+    if (!result.success) {
       setError(result.error || 'Login failed')
     }
   }

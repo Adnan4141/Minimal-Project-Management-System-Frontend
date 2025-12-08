@@ -60,17 +60,17 @@ src/
 
 ## Key Features
 
-- ✅ User authentication (email/password + OAuth)
-- ✅ Role-based dashboard (Admin, Manager, Member)
-- ✅ Project management with progress tracking
-- ✅ Sprint management with numbered sprints
-- ✅ Task management with status workflow
-- ✅ Kanban board with drag-and-drop
-- ✅ Time logging and tracking
-- ✅ Team member management
-- ✅ Reports and analytics
-- ✅ Real-time updates
-- ✅ Responsive design
+-  User authentication (email/password + OAuth)
+-  Role-based dashboard (Admin, Manager, Member)
+-  Project management with progress tracking
+-  Sprint management with numbered sprints
+-  Task management with status workflow
+-  Kanban board with drag-and-drop
+-  Time logging and tracking
+-  Team member management
+-  Reports and analytics
+-  Real-time updates
+-  Responsive design
 
 ## Pages
 

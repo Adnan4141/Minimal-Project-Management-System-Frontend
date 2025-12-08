@@ -58,7 +58,7 @@ export function Sidebar() {
     }
   }, [isExpanded])
 
-  const navItems = isAdminOrManager ? adminNavItems : userNavItems
+  const navItems = user?.isActive === false ? [] : (isAdminOrManager ? adminNavItems : userNavItems)
 
   return (
     <>

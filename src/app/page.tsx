@@ -9,7 +9,7 @@ import { FolderKanban, ArrowRight } from 'lucide-react'
 
 export default function HomePage() {
   const router = useRouter()
-  const { isAuthenticated, isLoading } = useAuth()
+  const { isAuthenticated, isLoading, user } = useAuth()
 
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
