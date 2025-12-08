@@ -81,11 +81,10 @@ export function OAuthButtons({ onSuccess, onError, disabled = false }: OAuthButt
           size="large"
           text="continue_with"
           locale="en"
-          // this is important:
           width="100%"
           containerProps={{
-            className: 'w-full',
-            style: { width: '100%' },
+            className: 'w-full min-w-full',
+            style: { width: '100%' ,minWidth: '100%'},
           }}
         />
       </div>
