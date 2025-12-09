@@ -43,6 +43,7 @@ import { Modal } from '@/components/ui/modal'
 import { ArrowLeft, MessageSquare, Clock, User, Calendar, Edit2, Trash2, Activity, Paperclip, Plus, X, FileText, Image, File, CheckCircle2, Circle, Check, XCircle, ShieldCheck } from 'lucide-react'
 import Link from 'next/link'
 import { DatePickerInput } from '@/components/ui/date-picker'
+import { formatDate, formatDateTime } from '@/lib/utils'
 
 export default function TaskDetailPage() {
   const params = useParams()
@@ -627,7 +628,7 @@ export default function TaskDetailPage() {
                           <div className="flex items-center gap-2">
                             <span className="font-medium text-sm">{comment.user.name}</span>
                             <span className="text-xs text-muted-foreground">
-                              {new Date(comment.createdAt).toLocaleString()}
+                              {formatDateTime(comment.createdAt)}
                             </span>
                           </div>
                           <p className="text-sm mt-1 whitespace-pre-wrap">{comment.content}</p>
@@ -644,7 +645,7 @@ export default function TaskDetailPage() {
                                 <div className="flex items-center gap-2">
                                   <span className="font-medium text-xs">{reply.user.name}</span>
                                   <span className="text-xs text-muted-foreground">
-                                    {new Date(reply.createdAt).toLocaleString()}
+                                    {formatDateTime(reply.createdAt)}
                                   </span>
                                 </div>
                                 <p className="text-xs mt-1">{reply.content}</p>
@@ -745,7 +746,7 @@ export default function TaskDetailPage() {
                           <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
                             <span>{formatFileSize(attachment.fileSize)}</span>
                             <span>•</span>
-                            <span>{new Date(attachment.uploadedAt).toLocaleDateString()}</span>
+                            <span>{formatDate(attachment.uploadedAt)}</span>
                             {attachment.uploadedBy && (
                               <>
                                 <span>•</span>
@@ -908,14 +909,14 @@ export default function TaskDetailPage() {
                             {log.hours}h
                           </Badge>
                           <span className="text-xs text-muted-foreground">
-                            {new Date(log.date).toLocaleDateString()}
+                            {formatDate(log.date)}
                           </span>
                         </div>
                         {log.description && (
                           <p className="text-sm text-muted-foreground mb-1">{log.description}</p>
                         )}
                         <p className="text-xs text-muted-foreground">
-                          by {log.user.name} • {new Date(log.loggedAt).toLocaleString()}
+                          by {log.user.name} • {formatDateTime(log.loggedAt)}
                         </p>
                       </div>
                       {canEditTimeLog(log) && (
@@ -971,7 +972,7 @@ export default function TaskDetailPage() {
                               {activity.user?.name || 'Unknown User'}
                             </span>
                             <span className="text-xs text-muted-foreground">
-                              {new Date(activity.createdAt).toLocaleString()}
+                              {formatDateTime(activity.createdAt)}
                             </span>
                           </div>
                           <p className="text-sm mt-1">{activity.description}</p>
@@ -1008,7 +1009,7 @@ export default function TaskDetailPage() {
                       Due Date
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      {new Date(task.dueDate).toLocaleDateString()}
+                      {formatDate(task.dueDate)}
                     </p>
                   </div>
                 )}

@@ -14,6 +14,7 @@ import { ArrowLeft, Edit, Trash2, Plus, Calendar, DollarSign, User, X, Loader2, 
 import Link from 'next/link'
 import { useState } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker'
+import { formatDate } from '@/lib/utils'
 
 export default function ProjectDetailPage() {
   const params = useParams()
@@ -272,8 +273,8 @@ export default function ProjectDetailPage() {
                                 Sprint {sprint.sprintNumber}: {sprint.title}
                               </h3>
                               <p className="text-sm text-muted-foreground">
-                                {new Date(sprint.startDate).toLocaleDateString()} -{' '}
-                                {new Date(sprint.endDate).toLocaleDateString()}
+                                {formatDate(sprint.startDate)} -{' '}
+                                {formatDate(sprint.endDate)}
                               </p>
                               {sprint.stats && (
                                 <div className="mt-2">
@@ -336,8 +337,8 @@ export default function ProjectDetailPage() {
                     Timeline
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {new Date(project.startDate).toLocaleDateString()} -{' '}
-                    {new Date(project.endDate).toLocaleDateString()}
+                    {formatDate(project.startDate)} -{' '}
+                    {formatDate(project.endDate)}
                   </p>
                 </div>
                 {project.budget && (

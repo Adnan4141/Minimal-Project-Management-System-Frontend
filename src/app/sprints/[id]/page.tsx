@@ -10,6 +10,7 @@ import { useGetSprintByIdQuery } from '@/lib/api/sprintApi'
 import { useAuth } from '@/hooks/useAuth'
 import { ArrowLeft, ChevronDown, ChevronRight, Calendar, CheckCircle, TrendingUp } from 'lucide-react'
 import Link from 'next/link'
+import { formatDate } from '@/lib/utils'
 
 export default function SprintDetailPage() {
   const params = useParams()
@@ -120,8 +121,8 @@ export default function SprintDetailPage() {
             </CardHeader>
             <CardContent>
               <p className="text-sm">
-                {new Date(sprint.startDate).toLocaleDateString()} -{' '}
-                {new Date(sprint.endDate).toLocaleDateString()}
+                {formatDate(sprint.startDate)} -{' '}
+                {formatDate(sprint.endDate)}
               </p>
             </CardContent>
           </Card>
@@ -238,7 +239,7 @@ export default function SprintDetailPage() {
                               )}
                               {task.dueDate && (
                                 <p className="text-muted-foreground">
-                                  Due: {new Date(task.dueDate).toLocaleDateString()}
+                                  Due: {formatDate(task.dueDate)}
                                 </p>
                               )}
                             </div>

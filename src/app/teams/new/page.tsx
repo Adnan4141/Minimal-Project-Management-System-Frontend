@@ -73,6 +73,16 @@ export default function NewTeamMemberPage() {
       return
     }
 
+    if (!formData.useInvite && !formData.password) {
+      setError('Password is required')
+      return
+    }
+
+    if (!formData.useInvite && formData.password && formData.password.length < 6) {
+      setError('Password must be at least 6 characters long')
+      return
+    }
+
 
     if ((formData.role === 'Admin' || formData.role === 'Manager') && !canCreateAdminOrManager) {
       setError('Only Admins can create Admin or Manager roles')
@@ -113,7 +123,7 @@ export default function NewTeamMemberPage() {
         const result = await createUser({
           name: formData.name,
           email: formData.email,
-          password: formData.password || undefined,
+          password: formData.password, // Password is now required
           role: formData.role,
           department: formData.department || undefined,
           skills: skillsArray,
@@ -281,64 +291,30 @@ export default function NewTeamMemberPage() {
                 </div>
 
                 
-                <div className="space-y-2 md:col-span-2">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.useInvite}
-                      onChange={(e) => setFormData({ ...formData, useInvite: e.target.checked })}
-                      className="rounded"
-                    />
-                    <span className="text-sm font-medium">Use invite flow (email invitation)</span>
-                  </label>
-                  <p className="text-xs text-muted-foreground ml-6">
-                    {formData.useInvite
-                      ? 'User will receive an email invitation to set up their account. Password will be auto-generated.'
-                      : 'Create user directly with optional password.'}
-                  </p>
-                </div>
-
+             
                 
                 {!formData.useInvite && (
                   <div className="space-y-2 md:col-span-2">
                     <label htmlFor="password" className="text-sm font-medium">
-                      Password (Optional)
+                      Password <span className="text-destructive">*</span>
                     </label>
                     <Input
                       id="password"
                       type="password"
+                      required
                       value={formData.password}
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      placeholder="Leave empty to generate random password"
+                      placeholder="Enter password (minimum 6 characters)"
                       minLength={6}
                     />
                     <p className="text-xs text-muted-foreground">
-                      If left empty, a random password will be generated and should be shared with the user.
+                      Password is required and must be at least 6 characters long
                     </p>
                   </div>
                 )}
 
                 
-                {formData.useInvite && (
-                  <div className="space-y-2 md:col-span-2">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData.sendEmail}
-                        onChange={(e) => setFormData({ ...formData, sendEmail: e.target.checked })}
-                        className="rounded"
-                      />
-                      <span className="text-sm font-medium flex items-center gap-2">
-                        <Send className="h-4 w-4" />
-                        Send invitation email
-                      </span>
-                    </label>
-                    <p className="text-xs text-muted-foreground ml-6">
-                      If unchecked, you'll receive an invite link to share manually.
-                    </p>
-                  </div>
-                )}
-
+          
                 
                 <div className="space-y-2 group">
                   <label htmlFor="role" className="text-sm font-semibold flex items-center gap-2 group-hover:text-primary transition-colors">

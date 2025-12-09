@@ -14,6 +14,7 @@ import { useGetMeQuery } from '@/lib/api/authApi'
 import { User, Camera, Save, Lock, X } from 'lucide-react'
 import { useAppDispatch } from '@/lib/hooks'
 import { setCredentials } from '@/lib/slices/authSlice'
+import { formatDate } from '@/lib/utils'
 
 export default function ProfilePage() {
   const { user } = useAuth()
@@ -489,7 +490,7 @@ export default function ProfilePage() {
                   <p className="text-sm text-muted-foreground">Member Since</p>
                   <p className="text-sm font-medium">
                     {meData?.data?.createdAt
-                      ? new Date(meData.data.createdAt).toLocaleDateString()
+                      ? formatDate(meData.data.createdAt)
                       : 'N/A'}
                   </p>
                 </div>

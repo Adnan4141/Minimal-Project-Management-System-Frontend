@@ -13,6 +13,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { ArrowLeft, Calendar, FileText, Target, Sparkles, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 import { DatePickerInput } from '@/components/ui/date-picker'
+import { formatDate } from '@/lib/utils'
 
 export default function EditSprintPage() {
   const router = useRouter()
@@ -246,7 +247,7 @@ export default function EditSprintPage() {
                   />
                   {project && (
                     <p className="text-xs text-muted-foreground">
-                      Project timeline: {new Date(project.startDate).toLocaleDateString()} - {new Date(project.endDate).toLocaleDateString()}
+                      Project timeline: {formatDate(project.startDate)} - {formatDate(project.endDate)}
                     </p>
                   )}
                 </div>

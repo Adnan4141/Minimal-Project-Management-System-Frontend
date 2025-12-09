@@ -7,6 +7,7 @@ import { useGetProjectsQuery } from '@/lib/api/projectApi'
 import { useAuth } from '@/hooks/useAuth'
 import { FolderKanban, Calendar } from 'lucide-react'
 import Link from 'next/link'
+import { formatDate } from '@/lib/utils'
 
 export default function MyProjectsPage() {
   const { user } = useAuth()
@@ -44,8 +45,8 @@ export default function MyProjectsPage() {
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <Calendar className="h-4 w-4" />
                         <span>
-                          {new Date(project.startDate).toLocaleDateString()} -{' '}
-                          {new Date(project.endDate).toLocaleDateString()}
+                          {formatDate(project.startDate)} -{' '}
+                          {formatDate(project.endDate)}
                         </span>
                       </div>
                       {project.stats && (

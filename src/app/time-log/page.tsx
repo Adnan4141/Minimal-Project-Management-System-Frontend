@@ -27,6 +27,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { Clock, Plus, Edit2, Trash2, Calendar, Filter, TrendingUp } from 'lucide-react'
 import Link from 'next/link'
 import { DatePickerInput } from '@/components/ui/date-picker'
+import { formatDate, formatDateTime } from '@/lib/utils'
 
 export default function TimeLogPage() {
   const { user } = useAuth()
@@ -309,12 +310,7 @@ export default function TimeLogPage() {
                     <div className="flex items-center justify-between">
                       <div>
                         <CardTitle className="text-lg">
-                          {new Date(date).toLocaleDateString('en-US', {
-                            weekday: 'long',
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric',
-                          })}
+                          {formatDate(date)}
                         </CardTitle>
                         <CardDescription>
                           {logs.length} {logs.length === 1 ? 'entry' : 'entries'} • {dayTotal.toFixed(1)}h total
@@ -349,7 +345,7 @@ export default function TimeLogPage() {
                               </p>
                             )}
                             <p className="text-xs text-muted-foreground">
-                              Logged at {new Date(log.loggedAt).toLocaleString()}
+                              Logged at {formatDateTime(log.loggedAt)}
                             </p>
                           </div>
                           <div className="flex items-center gap-2">

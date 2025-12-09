@@ -9,6 +9,7 @@ import { useGetTasksQuery, useUpdateTaskMutation, type Task } from '@/lib/api/ta
 import { useAuth } from '@/hooks/useAuth'
 import { CheckSquare, Search, Filter, Play, CheckCircle2, AlertCircle, X, ShieldCheck, Check, XCircle } from 'lucide-react'
 import Link from 'next/link'
+import { formatDate } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -225,7 +226,7 @@ export default function MyTasksPage() {
                         )}
                         {task.dueDate && (
                           <span>
-                            Due: {new Date(task.dueDate).toLocaleDateString()}
+                            Due: {formatDate(task.dueDate)}
                           </span>
                         )}
                         {task.estimate && (

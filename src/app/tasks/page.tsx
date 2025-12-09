@@ -18,6 +18,7 @@ import { useGetProjectsQuery } from '@/lib/api/projectApi'
 import { useAuth } from '@/hooks/useAuth'
 import { Plus, Search, ChevronDown, ChevronUp, Calendar, User, MessageSquare, Paperclip, Clock, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
+import { formatDate } from '@/lib/utils'
 
 export default function TasksPage() {
   const { isAdminOrManager } = useAuth()
@@ -233,7 +234,7 @@ export default function TasksPage() {
                             <div className="flex items-center gap-2 text-sm">
                               <Calendar className="h-4 w-4 text-muted-foreground" />
                               <span className="text-muted-foreground">Due Date:</span>
-                              <span>{new Date(task.dueDate).toLocaleDateString()}</span>
+                              <span>{formatDate(task.dueDate)}</span>
                             </div>
                           )}
 

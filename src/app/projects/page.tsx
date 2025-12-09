@@ -10,6 +10,7 @@ import { useGetProjectsQuery } from '@/lib/api/projectApi'
 import { useAuth } from '@/hooks/useAuth'
 import { Plus, Search, FolderKanban, Calendar, DollarSign, Grid3x3, Table2 } from 'lucide-react'
 import Link from 'next/link'
+import { formatDate } from '@/lib/utils'
 import {
   Select,
   SelectContent,
@@ -183,8 +184,8 @@ export default function ProjectsPage() {
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <Calendar className="h-4 w-4" />
                           <span>
-                            {new Date(project.startDate).toLocaleDateString()} -{' '}
-                            {new Date(project.endDate).toLocaleDateString()}
+                            {formatDate(project.startDate)} -{' '}
+                            {formatDate(project.endDate)}
                           </span>
                         </div>
                         {project.budget && (
@@ -256,8 +257,8 @@ export default function ProjectsPage() {
                             </Badge>
                           </td>
                           <td className="p-4 text-sm text-muted-foreground">
-                            <div>{new Date(project.startDate).toLocaleDateString()}</div>
-                            <div className="text-xs">{new Date(project.endDate).toLocaleDateString()}</div>
+                            <div>{formatDate(project.startDate)}</div>
+                            <div className="text-xs">{formatDate(project.endDate)}</div>
                           </td>
                           <td className="p-4 text-sm">
                             {project.budget ? (

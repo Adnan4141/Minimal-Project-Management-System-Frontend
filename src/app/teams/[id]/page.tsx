@@ -28,6 +28,7 @@ import {
   Calendar,
 } from 'lucide-react'
 import Link from 'next/link'
+import { formatDate, formatDateTime } from '@/lib/utils'
 
 export default function TeamMemberDetailPage() {
   const params = useParams()
@@ -224,7 +225,7 @@ export default function TeamMemberDetailPage() {
             </CardHeader>
             <CardContent>
               <p className="text-lg font-semibold">
-                {new Date(member.createdAt).toLocaleDateString()}
+                {formatDate(member.createdAt)}
               </p>
             </CardContent>
           </Card>
@@ -373,7 +374,7 @@ export default function TeamMemberDetailPage() {
                             </Link>
                           )}
                           <p className="text-xs text-muted-foreground mt-1">
-                            {new Date(activity.createdAt).toLocaleString()}
+                            {formatDateTime(activity.createdAt)}
                           </p>
                         </div>
                       ))}
