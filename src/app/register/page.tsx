@@ -1,8 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { useAuth } from '@/hooks/useAuth'
 import { useOAuthMutation, useGetMeQuery } from '@/lib/api/authApi'
 import { useAppDispatch } from '@/lib/hooks'
@@ -15,19 +18,54 @@ import { OAuthButtons } from '@/components/auth/OAuthButtons'
 import { FolderKanban } from 'lucide-react'
 import { config } from '@/config'
 
+
+const registerSchema = z.object({
+  name: z
+    .string()
+    .min(1, 'Full name is required')
+    .min(2, 'Full name must be at least 2 characters')
+    .max(100, 'Full name must be less than 100 characters')
+    .trim(),
+  email: z
+    .string()
+    .min(1, 'Email is required')
+    .email('Please enter a valid email address')
+    .toLowerCase()
+    .trim(),
+  password: z
+    .string()
+    .min(1, 'Password is required')
+    .min(6, 'Password must be at least 6 characters')
+    .max(100, 'Password must be less than 100 characters'),
+  confirmPassword: z
+    .string()
+    .min(1, 'Please confirm your password'),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: 'Passwords do not match',
+  path: ['confirmPassword'],
+})
+
+type RegisterFormData = z.infer<typeof registerSchema>
+
 export default function RegisterPage() {
   const router = useRouter()
   const dispatch = useAppDispatch()
   const { register, isLoading, isAuthenticated, user } = useAuth()
   const [oauth, { isLoading: isOAuthLoading }] = useOAuthMutation()
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
+  
+  const {
+    register: registerField,
+    handleSubmit,
+    formState: { errors },
+    setError: setFormError,
+  } = useForm<RegisterFormData>({
+    resolver: zodResolver(registerSchema),
+    mode: 'onBlur', // Validate on blur for better UX
   })
-  const [error, setError] = useState('')
 
+  const { refetch: refetchMe } = useGetMeQuery(undefined, {
+    skip: true,
+  })
 
   useEffect(() => {
     if (isAuthenticated && !isLoading && user) {
@@ -39,15 +77,8 @@ export default function RegisterPage() {
     return null
   }
 
-
-  const { refetch: refetchMe } = useGetMeQuery(undefined, {
-    skip: true,
-  })
-
   const handleOAuthSuccess = async (provider: 'google' | 'facebook', token: string) => {
     try {
-      setError('')
-      
       dispatch(apiSlice.util.invalidateTags(['User']))
       dispatch(apiSlice.util.resetApiState())
       
@@ -69,42 +100,30 @@ export default function RegisterPage() {
       }
     } catch (err: any) {
       if (err.data?.requiresActivation) {
-        setError(err.data?.message || 'Your account is pending activation. Please contact an administrator to activate your account.')
+        setFormError('root', {
+          message: err.data?.message || 'Your account is pending activation. Please contact an administrator to activate your account.'
+        })
       } else {
-        setError(err.data?.message || `${provider} registration failed`)
+        setFormError('root', {
+          message: err.data?.message || `${provider} registration failed`
+        })
       }
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-
-    if (!formData.name || !formData.email || !formData.password) {
-      setError('Please fill in all fields')
-      return
-    }
-
-    if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match')
-      return
-    }
-
-    if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters')
-      return
-    }
-
+  const onSubmit = async (data: RegisterFormData) => {
     const result = await register({
-      name: formData.name,
-      email: formData.email,
-      password: formData.password,
+      name: data.name,
+      email: data.email,
+      password: data.password,
     })
 
     if (result.success) {
       router.push('/login?pending=true')
     } else {
-      setError(result.error || 'Registration failed')
+      setFormError('root', {
+        message: result.error || 'Registration failed'
+      })
     }
   }
 
@@ -120,11 +139,11 @@ export default function RegisterPage() {
             Enter your information to get started
           </CardDescription>
         </CardHeader>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit(onSubmit)}>
           <CardContent className="space-y-4">
-            {error && (
+            {errors.root && (
               <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                {error}
+                {errors.root.message}
               </div>
             )}
             <div className="space-y-2">
@@ -135,10 +154,12 @@ export default function RegisterPage() {
                 id="name"
                 type="text"
                 placeholder="John Doe"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                required
+                {...registerField('name')}
+                className={errors.name ? 'border-destructive' : ''}
               />
+              {errors.name && (
+                <p className="text-sm text-destructive">{errors.name.message}</p>
+              )}
             </div>
             <div className="space-y-2">
               <label htmlFor="email" className="text-sm font-medium">
@@ -148,10 +169,12 @@ export default function RegisterPage() {
                 id="email"
                 type="email"
                 placeholder="name@example.com"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                required
+                {...registerField('email')}
+                className={errors.email ? 'border-destructive' : ''}
               />
+              {errors.email && (
+                <p className="text-sm text-destructive">{errors.email.message}</p>
+              )}
             </div>
             <div className="space-y-2">
               <label htmlFor="password" className="text-sm font-medium">
@@ -161,10 +184,12 @@ export default function RegisterPage() {
                 id="password"
                 type="password"
                 placeholder="At least 6 characters"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                required
+                {...registerField('password')}
+                className={errors.password ? 'border-destructive' : ''}
               />
+              {errors.password && (
+                <p className="text-sm text-destructive">{errors.password.message}</p>
+              )}
             </div>
             <div className="space-y-2">
               <label htmlFor="confirmPassword" className="text-sm font-medium">
@@ -174,10 +199,12 @@ export default function RegisterPage() {
                 id="confirmPassword"
                 type="password"
                 placeholder="Confirm your password"
-                value={formData.confirmPassword}
-                onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                required
+                {...registerField('confirmPassword')}
+                className={errors.confirmPassword ? 'border-destructive' : ''}
               />
+              {errors.confirmPassword && (
+                <p className="text-sm text-destructive">{errors.confirmPassword.message}</p>
+              )}
             </div>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
@@ -199,7 +226,7 @@ export default function RegisterPage() {
 
                 <OAuthButtons
                   onSuccess={handleOAuthSuccess}
-                  onError={(error) => setError(error)}
+                  onError={(error) => setFormError('root', { message: error })}
                   disabled={isLoading || isOAuthLoading}
                 />
               </>

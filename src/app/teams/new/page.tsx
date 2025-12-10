@@ -2,6 +2,9 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useForm, Controller } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -19,21 +22,66 @@ import { useAuth } from '@/hooks/useAuth'
 import { ArrowLeft, UserPlus, Mail, Building2, Briefcase, Send } from 'lucide-react'
 import Link from 'next/link'
 
+// Zod schema for team member creation
+const teamMemberSchema = z.object({
+  name: z.string().min(1, 'Full name is required').min(2, 'Full name must be at least 2 characters'),
+  email: z.string().min(1, 'Email is required').email('Please enter a valid email address').toLowerCase().trim(),
+  password: z.string().optional(),
+  role: z.enum(['Admin', 'Manager', 'Member']),
+  department: z.string().optional(),
+  skills: z.string().optional(),
+  useInvite: z.boolean().default(false),
+  sendEmail: z.boolean().default(true),
+}).superRefine((data, ctx) => {
+  if (!data.useInvite) {
+    if (!data.password) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Password is required',
+        path: ['password'],
+      })
+    } else if (data.password.length < 6) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Password must be at least 6 characters long',
+        path: ['password'],
+      })
+    }
+  }
+})
+
+type TeamMemberFormData = z.infer<typeof teamMemberSchema>
+
 export default function NewTeamMemberPage() {
   const router = useRouter()
   const { user, isAdminOrManager } = useAuth()
   const [createUser, { isLoading: isCreating }] = useCreateUserMutation()
   const [inviteUser, { isLoading: isInviting }] = useInviteUserMutation()
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-    role: 'Member' as 'Admin' | 'Manager' | 'Member',
-    department: '',
-    skills: '',
-    sendEmail: true,
-    useInvite: false,
+  
+  const {
+    register,
+    handleSubmit,
+    control,
+    watch,
+    formState: { errors },
+    setError: setFormError,
+    reset,
+  } = useForm<TeamMemberFormData>({
+    resolver: zodResolver(teamMemberSchema),
+    mode: 'onBlur',
+    defaultValues: {
+      name: '',
+      email: '',
+      password: '',
+      role: 'Member',
+      department: '',
+      skills: '',
+      sendEmail: true,
+      useInvite: false,
+    },
   })
+
+  const useInvite = watch('useInvite')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const [inviteResult, setInviteResult] = useState<{ inviteToken?: string; inviteUrl?: string } | null>(null)
@@ -57,94 +105,74 @@ export default function NewTeamMemberPage() {
 
   const canCreateAdminOrManager = user?.role === 'Admin'
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const onSubmit = async (data: TeamMemberFormData) => {
     setError('')
     setSuccess(false)
 
-
-    if (!formData.name || !formData.email) {
-      setError('Name and email are required')
-      return
-    }
-
-    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      setError('Please enter a valid email address')
-      return
-    }
-
-    if (!formData.useInvite && !formData.password) {
-      setError('Password is required')
-      return
-    }
-
-    if (!formData.useInvite && formData.password && formData.password.length < 6) {
-      setError('Password must be at least 6 characters long')
-      return
-    }
-
-
-    if ((formData.role === 'Admin' || formData.role === 'Manager') && !canCreateAdminOrManager) {
-      setError('Only Admins can create Admin or Manager roles')
+    if ((data.role === 'Admin' || data.role === 'Manager') && !canCreateAdminOrManager) {
+      setFormError('role', {
+        message: 'Only Admins can create Admin or Manager roles'
+      })
       return
     }
 
     try {
-
-      const skillsArray = formData.skills
-        ? formData.skills.split(',').map((s) => s.trim()).filter((s) => s.length > 0)
+      const skillsArray = data.skills
+        ? data.skills.split(',').map((s) => s.trim()).filter((s) => s.length > 0)
         : undefined
 
-      if (formData.useInvite) {
+      if (data.useInvite) {
         const result = await inviteUser({
-          name: formData.name,
-          email: formData.email,
-          role: formData.role,
-          department: formData.department || undefined,
+          name: data.name,
+          email: data.email,
+          role: data.role,
+          department: data.department || undefined,
           skills: skillsArray,
-          sendEmail: formData.sendEmail,
+          sendEmail: data.sendEmail,
         }).unwrap()
 
         if (result.success && result.data) {
           setSuccess(true)
-          const data = result.data
-          if (data.inviteToken || data.inviteUrl) {
+          const resultData = result.data
+          if (resultData.inviteToken || resultData.inviteUrl) {
             setInviteResult({
-              inviteToken: data.inviteToken,
-              inviteUrl: data.inviteUrl,
+              inviteToken: resultData.inviteToken,
+              inviteUrl: resultData.inviteUrl,
             })
-          } else if (data.id) {
+          } else if (resultData.id) {
             setTimeout(() => {
-              router.push(`/teams/${data.id}`)
+              router.push(`/teams/${resultData.id}`)
             }, 2000)
           }
         }
       } else {
         const result = await createUser({
-          name: formData.name,
-          email: formData.email,
-          password: formData.password, // Password is now required
-          role: formData.role,
-          department: formData.department || undefined,
+          name: data.name,
+          email: data.email,
+          password: data.password!,
+          role: data.role,
+          department: data.department || undefined,
           skills: skillsArray,
         }).unwrap()
 
         if (result.success && result.data) {
-          const data = result.data
-          if (data.id) {
+          const resultData = result.data
+          if (resultData.id) {
             setSuccess(true)
             setTimeout(() => {
-              router.push(`/teams/${data.id}`)
+              router.push(`/teams/${resultData.id}`)
             }, 2000)
           }
         }
       }
     } catch (err: any) {
-      setError(
-        err.data?.message ||
+      const errorMessage = err.data?.message ||
         err.data?.error ||
         'Failed to create team member. Please try again.'
-      )
+      setError(errorMessage)
+      setFormError('root', {
+        message: errorMessage
+      })
     }
   }
 
@@ -180,12 +208,12 @@ export default function NewTeamMemberPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-6">
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {error && (
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+              {(error || errors.root) && (
                 <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-4 text-sm text-destructive animate-in fade-in slide-in-from-top-2">
                   <div className="flex items-center gap-2">
                     <div className="h-1.5 w-1.5 rounded-full bg-destructive animate-pulse" />
-                    {error}
+                    {error || errors.root?.message}
                   </div>
                 </div>
               )}
@@ -237,16 +265,7 @@ export default function NewTeamMemberPage() {
                       onClick={() => {
                         setSuccess(false)
                         setInviteResult(null)
-                        setFormData({
-                          name: '',
-                          email: '',
-                          password: '',
-                          role: 'Member',
-                          department: '',
-                          skills: '',
-                          sendEmail: true,
-                          useInvite: false,
-                        })
+                        reset()
                       }}
                     >
                       Invite Another
@@ -265,12 +284,13 @@ export default function NewTeamMemberPage() {
                   <Input
                     id="name"
                     type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    {...register('name')}
                     placeholder="John Doe"
-                    className="transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                    required
+                    className={`transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary ${errors.name ? 'border-destructive' : ''}`}
                   />
+                  {errors.name && (
+                    <p className="text-sm text-destructive">{errors.name.message}</p>
+                  )}
                 </div>
 
                 
@@ -282,18 +302,19 @@ export default function NewTeamMemberPage() {
                   <Input
                     id="email"
                     type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    {...register('email')}
                     placeholder="john.doe@example.com"
-                    className="transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                    required
+                    className={`transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary ${errors.email ? 'border-destructive' : ''}`}
                   />
+                  {errors.email && (
+                    <p className="text-sm text-destructive">{errors.email.message}</p>
+                  )}
                 </div>
 
                 
              
                 
-                {!formData.useInvite && (
+                {!useInvite && (
                   <div className="space-y-2 md:col-span-2">
                     <label htmlFor="password" className="text-sm font-medium">
                       Password <span className="text-destructive">*</span>
@@ -301,15 +322,18 @@ export default function NewTeamMemberPage() {
                     <Input
                       id="password"
                       type="password"
-                      required
-                      value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      {...register('password')}
                       placeholder="Enter password (minimum 6 characters)"
-                      minLength={6}
+                      className={errors.password ? 'border-destructive' : ''}
                     />
-                    <p className="text-xs text-muted-foreground">
-                      Password is required and must be at least 6 characters long
-                    </p>
+                    {errors.password && (
+                      <p className="text-sm text-destructive">{errors.password.message}</p>
+                    )}
+                    {!errors.password && (
+                      <p className="text-xs text-muted-foreground">
+                        Password is required and must be at least 6 characters long
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -321,27 +345,33 @@ export default function NewTeamMemberPage() {
                     <Briefcase className="h-4 w-4" />
                     Role <span className="text-destructive">*</span>
                   </label>
-                  <Select
-                    value={formData.role}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, role: value as 'Admin' | 'Manager' | 'Member' })
-                    }
-                    required
-                    disabled={!canCreateAdminOrManager && (formData.role === 'Admin' || formData.role === 'Manager')}
-                  >
-                    <SelectTrigger id="role" className="transition-all">
-                      <SelectValue placeholder="Select role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Member"> Member</SelectItem>
-                      {canCreateAdminOrManager && (
-                        <>
-                          <SelectItem value="Manager"> Manager</SelectItem>
-                          <SelectItem value="Admin"> Admin</SelectItem>
-                        </>
-                      )}
-                    </SelectContent>
-                  </Select>
+                  <Controller
+                    name="role"
+                    control={control}
+                    render={({ field }) => (
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        disabled={!canCreateAdminOrManager && (field.value === 'Admin' || field.value === 'Manager')}
+                      >
+                        <SelectTrigger id="role" className={`transition-all ${errors.role ? 'border-destructive' : ''}`}>
+                          <SelectValue placeholder="Select role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Member">Member</SelectItem>
+                          {canCreateAdminOrManager && (
+                            <>
+                              <SelectItem value="Manager">Manager</SelectItem>
+                              <SelectItem value="Admin">Admin</SelectItem>
+                            </>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  {errors.role && (
+                    <p className="text-sm text-destructive">{errors.role.message}</p>
+                  )}
                   {!canCreateAdminOrManager && (
                     <p className="text-xs text-muted-foreground flex items-center gap-1">
                       <span className="h-1 w-1 rounded-full bg-muted-foreground" />
@@ -359,11 +389,13 @@ export default function NewTeamMemberPage() {
                   <Input
                     id="department"
                     type="text"
-                    value={formData.department}
-                    onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                    {...register('department')}
                     placeholder="Engineering, Design, etc."
-                    className="transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    className={`transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary ${errors.department ? 'border-destructive' : ''}`}
                   />
+                  {errors.department && (
+                    <p className="text-sm text-destructive">{errors.department.message}</p>
+                  )}
                 </div>
 
                 
@@ -374,15 +406,19 @@ export default function NewTeamMemberPage() {
                   <Input
                     id="skills"
                     type="text"
-                    value={formData.skills}
-                    onChange={(e) => setFormData({ ...formData, skills: e.target.value })}
+                    {...register('skills')}
                     placeholder="React, Node.js, TypeScript (comma-separated)"
-                    className="transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    className={`transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary ${errors.skills ? 'border-destructive' : ''}`}
                   />
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <span className="h-1 w-1 rounded-full bg-muted-foreground" />
-                    Enter skills separated by commas
-                  </p>
+                  {errors.skills && (
+                    <p className="text-sm text-destructive">{errors.skills.message}</p>
+                  )}
+                  {!errors.skills && (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <span className="h-1 w-1 rounded-full bg-muted-foreground" />
+                      Enter skills separated by commas
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -401,14 +437,14 @@ export default function NewTeamMemberPage() {
                   {isLoading ? (
                     <span className="flex items-center gap-2">
                       <div className="h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent" />
-                      {formData.useInvite ? 'Sending Invite...' : 'Creating...'}
+                      {useInvite ? 'Sending Invite...' : 'Creating...'}
                     </span>
                   ) : success ? (
                     'Done!'
                   ) : (
                     <span className="flex items-center gap-2">
                       <UserPlus className="h-4 w-4" />
-                      {formData.useInvite ? 'Send Invitation' : 'Create Team Member'}
+                      {useInvite ? 'Send Invitation' : 'Create Team Member'}
                     </span>
                   )}
                 </Button>

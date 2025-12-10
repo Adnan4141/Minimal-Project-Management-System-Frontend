@@ -2,6 +2,9 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useForm, Controller } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -21,6 +24,34 @@ import { ArrowLeft, UserCheck, Briefcase, Calendar, DollarSign, FileText, Buildi
 import Link from 'next/link'
 import { DatePickerInput } from '@/components/ui/date-picker'
 
+// Zod schema for project creation
+const projectSchema = z.object({
+  title: z.string().min(1, 'Project title is required'),
+  client: z.string().min(1, 'Client name is required'),
+  description: z.string().optional(),
+  startDate: z.string().min(1, 'Start date is required'),
+  endDate: z.string().min(1, 'End date is required'),
+  budget: z.string().optional().refine(
+    (val) => !val || (!isNaN(parseFloat(val)) && parseFloat(val) > 0),
+    { message: 'Budget must be a positive number' }
+  ),
+  status: z.enum(['planned', 'active', 'completed', 'archived']).default('planned'),
+  managerId: z.string().optional(),
+}).refine(
+  (data) => {
+    if (data.startDate && data.endDate) {
+      return new Date(data.endDate) >= new Date(data.startDate)
+    }
+    return true
+  },
+  {
+    message: 'End date must be after start date',
+    path: ['endDate'],
+  }
+)
+
+type ProjectFormData = z.infer<typeof projectSchema>
+
 export default function NewProjectPage() {
   const router = useRouter()
   const { isAdminOrManager } = useAuth()
@@ -30,18 +61,30 @@ export default function NewProjectPage() {
   const managersAndAdmins = usersData?.data?.users?.filter(
     (user) => (user.role === 'Manager' || user.role === 'Admin') && user.isActive
   ) || []
- 
-  const [formData, setFormData] = useState({
-    title: '',
-    client: '',
-    description: '',
-    startDate: '',
-    endDate: '',
-    budget: '',
-    status: 'planned',
-    managerId: '',
+
+  const {
+    register,
+    handleSubmit,
+    control,
+    watch,
+    formState: { errors },
+    setError: setFormError,
+  } = useForm<ProjectFormData>({
+    resolver: zodResolver(projectSchema),
+    mode: 'onBlur',
+    defaultValues: {
+      title: '',
+      client: '',
+      description: '',
+      startDate: '',
+      endDate: '',
+      budget: '',
+      status: 'planned',
+      managerId: '',
+    },
   })
-  const [error, setError] = useState('')
+
+  const startDate = watch('startDate')
 
   if (!isAdminOrManager) {
     return (
@@ -53,32 +96,26 @@ export default function NewProjectPage() {
     )
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-
-    if (!formData.title || !formData.client || !formData.startDate || !formData.endDate) {
-      setError('Please fill in all required fields')
-      return
-    }
-
+  const onSubmit = async (data: ProjectFormData) => {
     try {
       const result = await createProject({
-        title: formData.title,
-        client: formData.client,
-        description: formData.description || undefined,
-        startDate: formData.startDate,
-        endDate: formData.endDate,
-        budget: formData.budget ? parseFloat(formData.budget) : undefined,
-        status: formData.status as any,
-        managerId: formData.managerId && formData.managerId !== 'none' ? formData.managerId : undefined,
+        title: data.title,
+        client: data.client,
+        description: data.description || undefined,
+        startDate: data.startDate,
+        endDate: data.endDate,
+        budget: data.budget ? parseFloat(data.budget) : undefined,
+        status: data.status as any,
+        managerId: data.managerId && data.managerId !== 'none' ? data.managerId : undefined,
       }).unwrap()
 
       if (result.success && result.data) {
         router.push(`/projects/${result.data.id}`)
       }
     } catch (err: any) {
-      setError(err.data?.message || 'Failed to create project')
+      setFormError('root', {
+        message: err.data?.message || 'Failed to create project'
+      })
     }
   }
     
@@ -105,7 +142,7 @@ export default function NewProjectPage() {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit(onSubmit)}>
           <Card className="border-2 shadow-lg hover:shadow-xl transition-shadow duration-300">
             <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10 border-b">
               <CardTitle className="flex items-center gap-2 text-xl">
@@ -117,11 +154,11 @@ export default function NewProjectPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6 pt-6">
-              {error && (
+              {errors.root && (
                 <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-4 text-sm text-destructive animate-in fade-in slide-in-from-top-2">
                   <div className="flex items-center gap-2">
                     <div className="h-1.5 w-1.5 rounded-full bg-destructive animate-pulse" />
-                    {error}
+                    {errors.root.message}
                   </div>
                 </div>
               )}
@@ -133,12 +170,13 @@ export default function NewProjectPage() {
                 </label>
                 <Input
                   id="title"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  {...register('title')}
                   placeholder="Enter project title"
-                  className="transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                  required
+                  className={`transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary ${errors.title ? 'border-destructive' : ''}`}
                 />
+                {errors.title && (
+                  <p className="text-sm text-destructive">{errors.title.message}</p>
+                )}
               </div>
 
               <div className="space-y-2 group">
@@ -148,29 +186,30 @@ export default function NewProjectPage() {
                 </label>
                 <Input
                   id="client"
-                  value={formData.client}
-                  onChange={(e) => setFormData({ ...formData, client: e.target.value })}
+                  {...register('client')}
                   placeholder="Enter client name"
-                  className="transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                  required
+                  className={`transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary ${errors.client ? 'border-destructive' : ''}`}
                 />
+                {errors.client && (
+                  <p className="text-sm text-destructive">{errors.client.message}</p>
+                )}
               </div>
 
               <div className="space-y-2 group">
                 <label htmlFor="description" className="text-sm font-semibold flex items-center gap-2 group-hover:text-primary transition-colors">
                   <FileText className="h-4 w-4" />
                   Description
-                  <span className="text-destructive">*</span>
                 </label>
                 <Textarea
                   id="description"
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  {...register('description')}
                   placeholder="Enter project description..."
                   rows={4}
-                  required
-                  className="transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none"
+                  className={`transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none ${errors.description ? 'border-destructive' : ''}`}
                 />
+                {errors.description && (
+                  <p className="text-sm text-destructive">{errors.description.message}</p>
+                )}
               </div>
 
               <div className="grid gap-6 md:grid-cols-2">
@@ -179,13 +218,22 @@ export default function NewProjectPage() {
                     <Calendar className="h-4 w-4" />
                     Start Date <span className="text-destructive">*</span>
                   </label>
-                  <DatePickerInput
-                    id="startDate"
-                    value={formData.startDate}
-                    onChange={(date) => setFormData({ ...formData, startDate: date })}
-                    placeholder="Select start date"
-                    required
+                  <Controller
+                    name="startDate"
+                    control={control}
+                    render={({ field }) => (
+                      <DatePickerInput
+                        id="startDate"
+                        value={field.value || ''}
+                        onChange={field.onChange}
+                        placeholder="Select start date"
+                        className={errors.startDate ? 'border-destructive' : ''}
+                      />
+                    )}
                   />
+                  {errors.startDate && (
+                    <p className="text-sm text-destructive">{errors.startDate.message}</p>
+                  )}
                 </div>
 
                 <div className="space-y-2 group">
@@ -193,14 +241,23 @@ export default function NewProjectPage() {
                     <Calendar className="h-4 w-4" />
                     End Date <span className="text-destructive">*</span>
                   </label>
-                  <DatePickerInput
-                    id="endDate"
-                    value={formData.endDate}
-                    onChange={(date) => setFormData({ ...formData, endDate: date })}
-                    placeholder="Select end date"
-                    minDate={formData.startDate || undefined}
-                    required
+                  <Controller
+                    name="endDate"
+                    control={control}
+                    render={({ field }) => (
+                      <DatePickerInput
+                        id="endDate"
+                        value={field.value || ''}
+                        onChange={field.onChange}
+                        placeholder="Select end date"
+                        minDate={startDate || undefined}
+                        className={errors.endDate ? 'border-destructive' : ''}
+                      />
+                    )}
                   />
+                  {errors.endDate && (
+                    <p className="text-sm text-destructive">{errors.endDate.message}</p>
+                  )}
                 </div>
               </div>
 
@@ -216,12 +273,14 @@ export default function NewProjectPage() {
                       id="budget"
                       type="number"
                       step="0.01"
-                      value={formData.budget}
-                      onChange={(e) => setFormData({ ...formData, budget: e.target.value })}
+                      {...register('budget')}
                       placeholder="0.00"
-                      className="pl-9 transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                      className={`pl-9 transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary ${errors.budget ? 'border-destructive' : ''}`}
                     />
                   </div>
+                  {errors.budget && (
+                    <p className="text-sm text-destructive">{errors.budget.message}</p>
+                  )}
                 </div>
 
                 <div className="space-y-2 group">
@@ -229,20 +288,26 @@ export default function NewProjectPage() {
                     <Briefcase className="h-4 w-4" />
                     Status
                   </label>
-                  <Select
-                    value={formData.status}
-                    onValueChange={(value) => setFormData({ ...formData, status: value })}
-                  >
-                    <SelectTrigger id="status" className="transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary">
-                      <SelectValue placeholder="Select status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="planned"> Planned</SelectItem>
-                      <SelectItem value="active"> Active</SelectItem>
-                      <SelectItem value="completed"> Completed</SelectItem>
-                      <SelectItem value="archived"> Archived</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Controller
+                    name="status"
+                    control={control}
+                    render={({ field }) => (
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger id="status" className="transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary">
+                          <SelectValue placeholder="Select status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="planned">Planned</SelectItem>
+                          <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="completed">Completed</SelectItem>
+                          <SelectItem value="archived">Archived</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  {errors.status && (
+                    <p className="text-sm text-destructive">{errors.status.message}</p>
+                  )}
                 </div>
               </div>
 
@@ -251,26 +316,32 @@ export default function NewProjectPage() {
                   <UserCheck className="h-4 w-4" />
                   Project Manager <span className="text-xs text-muted-foreground font-normal ml-1">(Optional)</span>
                 </label>
-                <Select
-                  value={formData.managerId || 'none'}
-                  onValueChange={(value) => setFormData({ ...formData, managerId: value === 'none' ? '' : value })}
-                >
-                  <SelectTrigger id="managerId" className="w-full transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary">
-                    <SelectValue placeholder="Select manager" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {managersAndAdmins.length > 0 ? (
-                      <>
-                        <SelectItem value="none"> No manager assigned</SelectItem>
-                        {managersAndAdmins.map((user) => (
-                          <SelectItem key={user.id} value={user.id}>
-                            {user.name} - {user.role} {user.department ? `(${user.department})` : ''}
-                          </SelectItem>
-                        ))}
-                      </>
-                    ) : null}
-                  </SelectContent>
-                </Select>
+                <Controller
+                  name="managerId"
+                  control={control}
+                  render={({ field }) => (
+                    <Select
+                      value={field.value || 'none'}
+                      onValueChange={(value) => field.onChange(value === 'none' ? '' : value)}
+                    >
+                      <SelectTrigger id="managerId" className="w-full transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary">
+                        <SelectValue placeholder="Select manager" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {managersAndAdmins.length > 0 ? (
+                          <>
+                            <SelectItem value="none">No manager assigned</SelectItem>
+                            {managersAndAdmins.map((user) => (
+                              <SelectItem key={user.id} value={user.id}>
+                                {user.name} - {user.role} {user.department ? `(${user.department})` : ''}
+                              </SelectItem>
+                            ))}
+                          </>
+                        ) : null}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
                 {managersAndAdmins.length === 0 && (
                   <p className="text-xs text-muted-foreground flex items-center gap-2 mt-2 p-2 rounded-md bg-muted/30">
                     <Users className="h-3.5 w-3.5" />

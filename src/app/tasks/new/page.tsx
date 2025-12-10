@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useForm, Controller } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -23,6 +26,26 @@ import { useAuth } from '@/hooks/useAuth'
 import { ArrowLeft, FileText, Calendar, Clock, AlertCircle, Users, Target, Sparkles, Loader2, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 import { DatePickerInput } from '@/components/ui/date-picker'
+
+// Zod schema for task creation
+const taskSchema = z.object({
+  title: z.string().min(1, 'Task title is required'),
+  description: z.string().optional(),
+  estimate: z.string().optional().refine(
+    (val) => !val || (!isNaN(parseFloat(val)) && parseFloat(val) > 0),
+    { message: 'Estimate must be a positive number' }
+  ),
+  priority: z.enum(['Low', 'Medium', 'High', 'Critical']).default('Medium'),
+  status: z.enum(['ToDo', 'InProgress', 'Review', 'Done']).default('ToDo'),
+  dueDate: z.string().optional().refine(
+    (val) => !val || new Date(val) >= new Date(new Date().setHours(0, 0, 0, 0)),
+    { message: 'Due date cannot be in the past' }
+  ),
+  sprintId: z.string().min(1, 'Sprint is required'),
+  assigneeIds: z.array(z.string()).default([]),
+})
+
+type TaskFormData = z.infer<typeof taskSchema>
 
 export default function NewTaskPage() {
   const router = useRouter()
@@ -52,26 +75,39 @@ export default function NewTaskPage() {
     return false
   })
 
-
-  
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    estimate: '',
-    priority: 'Medium' as 'Low' | 'Medium' | 'High' | 'Critical',
-    status: 'ToDo' as 'ToDo' | 'InProgress' | 'Review' | 'Done',
-    dueDate: '',
-    sprintId: '',
-    assigneeIds: [] as string[],
+  const {
+    register,
+    handleSubmit,
+    control,
+    watch,
+    setValue,
+    formState: { errors },
+    setError: setFormError,
+    reset,
+  } = useForm<TaskFormData>({
+    resolver: zodResolver(taskSchema),
+    mode: 'onBlur',
+    defaultValues: {
+      title: '',
+      description: '',
+      estimate: '',
+      priority: 'Medium',
+      status: 'ToDo',
+      dueDate: '',
+      sprintId: '',
+      assigneeIds: [],
+    },
   })
+
+  const assigneeIds = watch('assigneeIds')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
 
   useEffect(() => {
     if (selectedProjectId) {
-      setFormData(prev => ({ ...prev, sprintId: '' }))
+      setValue('sprintId', '')
     }
-  }, [selectedProjectId])
+  }, [selectedProjectId, setValue])
 
   if (!isAdminOrManager) {
     return (
@@ -83,31 +119,20 @@ export default function NewTaskPage() {
     )
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const onSubmit = async (data: TaskFormData) => {
     setError('')
     setSuccess(false)
 
-    if (!formData.title || !formData.sprintId) {
-      setError('Please fill in all required fields')
-      return
-    }
-
-    if (formData.dueDate && new Date(formData.dueDate) < new Date()) {
-      setError('Due date cannot be in the past')
-      return
-    }
-
     try {
       const result = await createTask({
-        title: formData.title,
-        description: formData.description || undefined,
-        estimate: formData.estimate ? parseFloat(formData.estimate) : undefined,
-        priority: formData.priority,
-        status: formData.status,
-        dueDate: formData.dueDate || undefined,
-        sprintId: formData.sprintId,
-        assigneeIds: formData.assigneeIds.length > 0 ? formData.assigneeIds : undefined,
+        title: data.title,
+        description: data.description || undefined,
+        estimate: data.estimate ? parseFloat(data.estimate) : undefined,
+        priority: data.priority,
+        status: data.status,
+        dueDate: data.dueDate || undefined,
+        sprintId: data.sprintId,
+        assigneeIds: data.assigneeIds.length > 0 ? data.assigneeIds : undefined,
       }).unwrap()
 
       if (result.success && result.data) {
@@ -121,16 +146,18 @@ export default function NewTaskPage() {
       }
     } catch (err: any) {
       setError(err?.data?.message || 'Failed to create task')
+      setFormError('root', {
+        message: err?.data?.message || 'Failed to create task'
+      })
     }
   }
 
   const handleAssigneeToggle = (userId: string) => {
-    setFormData(prev => ({
-      ...prev,
-      assigneeIds: prev.assigneeIds.includes(userId)
-        ? prev.assigneeIds.filter(id => id !== userId)
-        : [...prev.assigneeIds, userId]
-    }))
+    const currentIds = assigneeIds || []
+    const newIds = currentIds.includes(userId)
+      ? currentIds.filter(id => id !== userId)
+      : [...currentIds, userId]
+    setValue('assigneeIds', newIds)
   }
 
   return (
@@ -155,7 +182,7 @@ export default function NewTaskPage() {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit(onSubmit)}>
           <Card className="border-2 shadow-lg hover:shadow-xl transition-shadow duration-300">
             <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10 border-b">
               <CardTitle className="flex items-center gap-2 text-xl">
@@ -167,11 +194,11 @@ export default function NewTaskPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6 pt-6">
-              {error && (
+              {(error || errors.root) && (
                 <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-4 text-sm text-destructive animate-in fade-in slide-in-from-top-2">
                   <div className="flex items-center gap-2">
                     <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                    {error}
+                    {error || errors.root?.message}
                   </div>
                 </div>
               )}
@@ -192,12 +219,13 @@ export default function NewTaskPage() {
                 </label>
                 <Input
                   id="title"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  {...register('title')}
                   placeholder="e.g., Implement user authentication"
-                  className="transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                  required
+                  className={`transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary ${errors.title ? 'border-destructive' : ''}`}
                 />
+                {errors.title && (
+                  <p className="text-sm text-destructive">{errors.title.message}</p>
+                )}
               </div>
 
               <div className="space-y-2 group">
@@ -207,12 +235,14 @@ export default function NewTaskPage() {
                 </label>
                 <Textarea
                   id="description"
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  {...register('description')}
                   placeholder="Enter task description..."
                   rows={4}
-                  className="transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none"
+                  className={`transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none ${errors.description ? 'border-destructive' : ''}`}
                 />
+                {errors.description && (
+                  <p className="text-sm text-destructive">{errors.description.message}</p>
+                )}
               </div>
 
               <div className="grid gap-6 md:grid-cols-2">
@@ -241,32 +271,39 @@ export default function NewTaskPage() {
 
                 <div className="space-y-2 group">
                   <label htmlFor="sprintId" className="text-sm font-semibold flex items-center gap-2 group-hover:text-primary transition-colors">
-                  
                     Sprint <span className="text-destructive">*</span>
                   </label>
-                  <Select
-                    value={formData.sprintId}
-                    onValueChange={(value) => setFormData({ ...formData, sprintId: value })}
-                    disabled={!selectedProjectId || sprints.length === 0}
-                    required
-                  >
-                    <SelectTrigger id="sprintId" className="transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary">
-                      <SelectValue placeholder={
-                        !selectedProjectId 
-                          ? 'Select a project first' 
-                          : sprints.length === 0 
-                          ? 'No sprints available' 
-                          : 'Select a sprint'
-                      } />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {sprints.map((sprint) => (
-                        <SelectItem key={sprint.id} value={sprint.id}>
-                          Sprint {sprint.sprintNumber}: {sprint.title}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Controller
+                    name="sprintId"
+                    control={control}
+                    render={({ field }) => (
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        disabled={!selectedProjectId || sprints.length === 0}
+                      >
+                        <SelectTrigger id="sprintId" className={`transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary ${errors.sprintId ? 'border-destructive' : ''}`}>
+                          <SelectValue placeholder={
+                            !selectedProjectId 
+                              ? 'Select a project first' 
+                              : sprints.length === 0 
+                              ? 'No sprints available' 
+                              : 'Select a sprint'
+                          } />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {sprints.map((sprint) => (
+                            <SelectItem key={sprint.id} value={sprint.id}>
+                              Sprint {sprint.sprintNumber}: {sprint.title}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  {errors.sprintId && (
+                    <p className="text-sm text-destructive">{errors.sprintId.message}</p>
+                  )}
                 </div>
               </div>
 
@@ -276,41 +313,52 @@ export default function NewTaskPage() {
                     <AlertCircle className="h-4 w-4" />
                     Priority
                   </label>
-                  <Select
-                    value={formData.priority}
-                    onValueChange={(value) => setFormData({ ...formData, priority: value as any })}
-                  >
-                    <SelectTrigger id="priority" className="transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary">
-                      <SelectValue placeholder="Select priority" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Low"> Low</SelectItem>
-                      <SelectItem value="Medium">Medium</SelectItem>
-                      <SelectItem value="High"> High</SelectItem>
-                      <SelectItem value="Critical"> Critical</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Controller
+                    name="priority"
+                    control={control}
+                    render={({ field }) => (
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger id="priority" className="transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary">
+                          <SelectValue placeholder="Select priority" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Low">Low</SelectItem>
+                          <SelectItem value="Medium">Medium</SelectItem>
+                          <SelectItem value="High">High</SelectItem>
+                          <SelectItem value="Critical">Critical</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  {errors.priority && (
+                    <p className="text-sm text-destructive">{errors.priority.message}</p>
+                  )}
                 </div>
 
                 <div className="space-y-2 group">
                   <label htmlFor="status" className="text-sm font-semibold flex items-center gap-2 group-hover:text-primary transition-colors">
-                  
                     Status
                   </label>
-                  <Select
-                    value={formData.status}
-                    onValueChange={(value) => setFormData({ ...formData, status: value as any })}
-                  >
-                    <SelectTrigger id="status" className="transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary">
-                      <SelectValue placeholder="Select status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ToDo">To Do</SelectItem>
-                      <SelectItem value="InProgress">In Progress</SelectItem>
-                      <SelectItem value="Review">Review</SelectItem>
-                      <SelectItem value="Done">Done</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Controller
+                    name="status"
+                    control={control}
+                    render={({ field }) => (
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger id="status" className="transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary">
+                          <SelectValue placeholder="Select status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ToDo">To Do</SelectItem>
+                          <SelectItem value="InProgress">In Progress</SelectItem>
+                          <SelectItem value="Review">Review</SelectItem>
+                          <SelectItem value="Done">Done</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  {errors.status && (
+                    <p className="text-sm text-destructive">{errors.status.message}</p>
+                  )}
                 </div>
               </div>
 
@@ -325,27 +373,37 @@ export default function NewTaskPage() {
                     type="number"
                     step="0.5"
                     min="0"
-                    value={formData.estimate}
-                    onChange={(e) => setFormData({ ...formData, estimate: e.target.value })}
+                    {...register('estimate')}
                     placeholder="e.g., 8"
-                    className="transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    className={`transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary ${errors.estimate ? 'border-destructive' : ''}`}
                   />
+                  {errors.estimate && (
+                    <p className="text-sm text-destructive">{errors.estimate.message}</p>
+                  )}
                 </div>
 
                 <div className="space-y-2 group">
                   <label htmlFor="dueDate" className="text-sm font-semibold flex items-center gap-2 group-hover:text-primary transition-colors">
                     <Calendar className="h-4 w-4" />
                     Due Date
-                    <span className="text-destructive">*</span>
                   </label>
-                  <DatePickerInput
-                    id="dueDate"
-                    value={formData.dueDate}
-                    required
-                    onChange={(date) => setFormData({ ...formData, dueDate: date })}
-                    placeholder="Select due date"
-                    minDate={new Date().toISOString().split('T')[0]}
+                  <Controller
+                    name="dueDate"
+                    control={control}
+                    render={({ field }) => (
+                      <DatePickerInput
+                        id="dueDate"
+                        value={field.value || ''}
+                        onChange={field.onChange}
+                        placeholder="Select due date"
+                        minDate={new Date().toISOString().split('T')[0]}
+                        className={errors.dueDate ? 'border-destructive' : ''}
+                      />
+                    )}
                   />
+                  {errors.dueDate && (
+                    <p className="text-sm text-destructive">{errors.dueDate.message}</p>
+                  )}
                 </div>
               </div>
 
@@ -364,7 +422,7 @@ export default function NewTaskPage() {
                         >
                           <input
                             type="checkbox"
-                            checked={formData.assigneeIds.includes(user.id)}
+                            checked={(assigneeIds || []).includes(user.id)}
                             onChange={() => handleAssigneeToggle(user.id)}
                             className="h-4 w-4 text-primary focus:ring-primary rounded"
                           />
@@ -397,9 +455,9 @@ export default function NewTaskPage() {
                     </p>
                   )}
                 </div>
-                {formData.assigneeIds.length > 0 && (
+                {(assigneeIds || []).length > 0 && (
                   <p className="text-xs text-muted-foreground">
-                    {formData.assigneeIds.length} assignee{formData.assigneeIds.length !== 1 ? 's' : ''} selected
+                    {(assigneeIds || []).length} assignee{(assigneeIds || []).length !== 1 ? 's' : ''} selected
                   </p>
                 )}
               </div>
