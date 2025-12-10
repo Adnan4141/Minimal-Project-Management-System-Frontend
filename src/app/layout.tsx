@@ -14,7 +14,14 @@ export const metadata: Metadata = {
   title: 'Minimal Project Management System',
   description: 'A project management system with admin dashboard and user panel',
   icons: {
-    icon: '/favicon.ico',
+    icon: [
+      { url: '/favicon.png', type: 'image/png', sizes: '32x32' },
+      { url: '/icon.png', type: 'image/png', sizes: 'any' },
+    ],
+    apple: [
+      { url: '/favicon.png', sizes: '180x180', type: 'image/png' },
+    ],
+    shortcut: '/favicon.png',
   },
 }
 

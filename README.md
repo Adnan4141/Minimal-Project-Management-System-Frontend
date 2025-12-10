@@ -71,16 +71,22 @@ src/
 -  Reports and analytics
 -  Real-time updates
 -  Responsive design
+-  Form validation with React Hook Form + Zod
 
 ## Pages
 
 - **Dashboard** (`/dashboard`) - Overview with stats and recent activity
+- **Login** (`/login`) - User authentication
+- **Register** (`/register`) - User registration with form validation
 - **Projects** (`/projects`) - Project list with filters
+- **New Project** (`/projects/new`) - Create project with validated form
 - **Project Detail** (`/projects/[id]`) - Project details, sprints, progress
 - **Tasks** (`/tasks`) - Task list with filters
+- **New Task** (`/tasks/new`) - Create task with validated form
 - **Task Detail** (`/tasks/[id]`) - Full task details, comments, time logs
 - **Kanban** (`/tasks/kanban`) - Drag-and-drop task board
 - **Teams** (`/teams`) - Team member management
+- **New Team Member** (`/teams/new`) - Add team member with validated form
 - **Time Log** (`/time-log`) - Personal time tracking
 - **Reports** (`/reports`) - Analytics and reports (Admin/Manager)
 
@@ -103,6 +109,14 @@ Uses Redux Toolkit with RTK Query for:
 - **API Caching:** Automatic caching and invalidation
 - **Optimistic Updates:** Better UX with instant feedback
 
+## Form Management
+
+Uses React Hook Form for:
+- **Performance:** Minimal re-renders, uncontrolled components
+- **Validation:** Zod schema validation with type safety
+- **Error Handling:** Field-level and form-level error messages
+- **Accessibility:** Built-in form accessibility features
+
 ## UI Components
 
 Built with Radix UI primitives:
@@ -110,6 +124,74 @@ Built with Radix UI primitives:
 - Modal, Dropdown, Badge
 - Toast notifications
 - Loading states
+
+## Form Validation
+
+All creation forms use **React Hook Form** with **Zod** validation for type-safe, performant form handling:
+
+### Implemented Forms
+
+1. **Signup/Register Form** (`/register`)
+   - Name validation (min 2 characters)
+   - Email validation with format checking
+   - Password validation (min 6 characters)
+   - Password confirmation matching
+   - Real-time field-level error messages
+
+2. **Task Creation Form** (`/tasks/new`)
+   - Title (required)
+   - Description (optional)
+   - Estimate validation (positive numbers)
+   - Priority and Status (enum validation)
+   - Due date validation (cannot be in the past)
+   - Sprint selection (required)
+   - Assignee selection
+
+3. **Project Creation Form** (`/projects/new`)
+   - Title and Client (required)
+   - Description (optional)
+   - Start/End date validation (end date must be after start date)
+   - Budget validation (positive numbers)
+   - Status enum validation
+   - Manager assignment (optional)
+
+4. **Team Member Creation Form** (`/teams/new`)
+   - Name validation (min 2 characters)
+   - Email validation with format checking
+   - Conditional password validation (required when not using invite)
+   - Role enum validation
+   - Department and Skills (optional, comma-separated)
+
+### Validation Features
+
+- **Real-time validation** on field blur for better UX
+- **Field-level error messages** displayed below each input
+- **Visual feedback** with red borders on invalid fields
+- **Type-safe** form handling with TypeScript
+- **Backend-aligned** validation matching server requirements
+- **Cross-field validation** for complex rules (e.g., date ranges, password matching)
+
+### Example Usage
+
+```typescript
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+
+const schema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  email: z.string().email('Invalid email'),
+})
+
+const { register, handleSubmit, formState: { errors } } = useForm({
+  resolver: zodResolver(schema),
+  mode: 'onBlur',
+})
+
+// In JSX
+<Input {...register('name')} />
+{errors.name && <p>{errors.name.message}</p>}
+```
 
 ## Scripts
 
