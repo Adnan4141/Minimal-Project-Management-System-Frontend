@@ -76,13 +76,112 @@ export default function TaskDetailPage() {
   const [subtaskTitle, setSubtaskTitle] = useState('')
   const [subtaskDescription, setSubtaskDescription] = useState('')
   const [isCreatingSubtask, setIsCreatingSubtask] = useState(false)
+  const [isSubmissionModalOpen, setIsSubmissionModalOpen] = useState(false)
+  const [submissionNotes, setSubmissionNotes] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const task = data?.data
   const comments = commentsData?.data || []
   const timeLogs = timeLogsData?.data?.timeLogs || []
+  const totalHoursLogged = timeLogsData?.data?.totalHours || 0
   const attachments = attachmentsData?.data || []
   const activities = task?.activities || []
   const subtasks = task?.subtasks || []
+
+  // Calculate submission history - count how many times task was submitted for review
+  const submissionHistory = activities
+    .filter(
+      (activity) => 
+        activity.type === 'status_changed' && 
+        activity.metadata?.newStatus === 'Review'
+    )
+    .map((activity) => {
+      // Calculate if this submission was on time or late
+      let submissionStatus = null
+      if (task?.dueDate) {
+        const submissionDate = new Date(activity.createdAt)
+        const dueDate = new Date(task.dueDate)
+        const diffTime = submissionDate.getTime() - dueDate.getTime()
+        
+        if (diffTime <= 0) {
+          // Submitted on time
+          submissionStatus = { onTime: true, message: 'On Time Submitted' }
+        } else {
+          // Submitted late
+          const diffMinutes = Math.floor(diffTime / (1000 * 60))
+          const diffHours = Math.floor(diffTime / (1000 * 60 * 60))
+          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+          
+          let lateMessage = ''
+          if (diffDays > 0) {
+            lateMessage = `${diffDays} ${diffDays === 1 ? 'day' : 'days'} late`
+          } else if (diffHours > 0) {
+            lateMessage = `${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} late`
+          } else {
+            lateMessage = `${diffMinutes} ${diffMinutes === 1 ? 'min' : 'mins'} late`
+          }
+          
+          submissionStatus = { onTime: false, message: lateMessage }
+        }
+      }
+      
+      return {
+        ...activity,
+        submissionStatus,
+      }
+    })
+  const submissionCount = submissionHistory.length
+
+  // Get all status change activities for timeline
+  const statusChangeActivities = activities
+    .filter((activity) => activity.type === 'status_changed')
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+
+  // Calculate if task is late and by how much (for current status)
+  const calculateLateStatus = () => {
+    if (!task?.dueDate) return null
+    
+    const dueDate = new Date(task.dueDate)
+    const now = new Date()
+    const diffTime = now.getTime() - dueDate.getTime()
+    
+    if (diffTime <= 0) {
+      // On time
+      return { onTime: true, message: 'On Time' }
+    }
+    
+    // Late
+    const diffMinutes = Math.floor(diffTime / (1000 * 60))
+    const diffHours = Math.floor(diffTime / (1000 * 60 * 60))
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+    
+    // Format the late status message
+    let lateMessage = ''
+    if (diffDays > 0) {
+      lateMessage = `${diffDays} ${diffDays === 1 ? 'day' : 'days'} late`
+    } else if (diffHours > 0) {
+      lateMessage = `${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} late`
+    } else {
+      lateMessage = `${diffMinutes} ${diffMinutes === 1 ? 'min' : 'mins'} late`
+    }
+    
+    return {
+      onTime: false,
+      days: diffDays,
+      hours: diffHours,
+      minutes: diffMinutes,
+      totalHours: diffHours,
+      message: lateMessage,
+    }
+  }
+
+  const lateStatus = calculateLateStatus()
+  
+  // Calculate submission status for the most recent submission (when task is in Review)
+  // This shows if the submission was on time or late based on when it was submitted
+  const currentSubmissionStatus = task?.status === 'Review' && submissionHistory.length > 0
+    ? submissionHistory[submissionHistory.length - 1].submissionStatus
+    : null
 
   const handleStatusChange = async (newStatus: 'ToDo' | 'InProgress' | 'Review' | 'Done') => {
     setStatusError('')
@@ -95,6 +194,40 @@ export default function TaskDetailPage() {
       const errorMessage = error?.data?.message || 'Failed to update task status'
       setStatusError(errorMessage)
       console.error('Failed to update task status:', error)
+    }
+  }
+
+  const handleSubmitForReview = async () => {
+    if (!task) return
+    
+    setIsSubmitting(true)
+    setStatusError('')
+    
+    try {
+      // Update task status to Review
+      await updateTask({
+        id: taskId,
+        status: 'Review',
+      }).unwrap()
+
+      // If submission notes provided, create a comment
+      if (submissionNotes.trim()) {
+        await createComment({
+          taskId,
+          content: `**Task Submission Notes:**\n\n${submissionNotes}`,
+        }).unwrap()
+        refetchComments()
+      }
+
+      // Close modal and reset
+      setIsSubmissionModalOpen(false)
+      setSubmissionNotes('')
+    } catch (error: any) {
+      const errorMessage = error?.data?.message || 'Failed to submit task for review'
+      setStatusError(errorMessage)
+      console.error('Failed to submit task:', error)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -331,7 +464,10 @@ export default function TaskDetailPage() {
   const isManagerOrAdmin = user?.role === 'Admin' || user?.role === 'Manager'
   const canApproveReview = task.status === 'Review' && isManagerOrAdmin
   const canMoveToDone = task.status === 'Review' ? isManagerOrAdmin : canUpdateStatus
-
+  const isAssignedUser = task.assignees?.some(a => a.user.id === user?.id) || false
+  const canSubmitForReview = isAssignedUser && 
+    (task.status === 'ToDo' || task.status === 'InProgress') &&
+    user?.role !== 'Admin' && user?.role !== 'Manager'
 
   const progressPercentage = task.status === 'Done' ? 100 : 
     task.status === 'Review' ? 75 :
@@ -391,7 +527,8 @@ export default function TaskDetailPage() {
             </div>
           )}
         </div>
-
+       
+       
         
         <Card className="overflow-hidden">
           <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10 border-b">
@@ -412,7 +549,12 @@ export default function TaskDetailPage() {
           </CardHeader>
           <CardContent className="pt-8 pb-6">
             <div className="space-y-8">
-              <div className="relative px-2">
+             
+              <div>
+                 
+              </div>
+             
+             <div className="relative px-2">
                 <div className="absolute top-8 left-8 right-8 h-1 bg-gradient-to-r from-muted via-muted/50 to-muted rounded-full" />
                 <div 
                   className="absolute top-8 left-8 h-1 bg-gradient-to-r from-green-500 via-green-400 to-primary rounded-full transition-all duration-700 ease-out shadow-lg shadow-green-500/30"
@@ -498,6 +640,61 @@ export default function TaskDetailPage() {
                 </div>
               </div>
 
+              {/* Submission History Section */}
+              <div className="pt-6 border-t border-dashed">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <MessageSquare className="h-4 w-4 text-primary" />
+                      <span className="text-sm font-semibold text-foreground">Submission History</span>
+                    </div>
+                    <Badge variant="outline" className="font-semibold">
+                      {submissionCount} {submissionCount === 1 ? 'Submission' : 'Submissions'}
+                    </Badge>
+                  </div>
+                  
+                  {submissionCount > 0 ? (
+                    <div className="space-y-3">
+                      {submissionHistory.map((submission, index) => (
+                        <div
+                          key={submission.id}
+                          className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg border border-primary/10"
+                        >
+                          <div className="flex-shrink-0 mt-0.5">
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-sm">
+                              #{index + 1}
+                            </div>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-sm font-medium">
+                                {submission.user?.name || 'Unknown User'}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                submitted for review
+                              </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {formatDateTime(submission.createdAt)}
+                            </p>
+                            {submission.metadata?.oldStatus && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Status changed from <span className="font-medium">{submission.metadata.oldStatus}</span> to <span className="font-medium text-yellow-600 dark:text-yellow-400">Review</span>
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-4 text-sm text-muted-foreground">
+                      <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p>No submissions yet. This task hasn't been submitted for review.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="pt-6 border-t border-dashed">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
@@ -530,11 +727,39 @@ export default function TaskDetailPage() {
                           <ShieldCheck className="h-6 w-6 text-primary" />
                         </div>
                         <div className="flex-1">
-                          <h3 className="text-lg font-bold text-foreground mb-1">
-                            Task Approval Required
-                          </h3>
+                          <div className="flex items-center gap-3 mb-2">
+                            <h3 className="text-lg font-bold text-foreground">
+                              Task Approval Required
+                            </h3>
+                            {currentSubmissionStatus && (
+                              <Badge 
+                                className={`font-semibold ${
+                                  !currentSubmissionStatus.onTime
+                                    ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 border-red-300 dark:border-red-700'
+                                    : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 border-green-300 dark:border-green-700'
+                                }`}
+                              >
+                                {currentSubmissionStatus.onTime ? (
+                                  <span className="flex items-center gap-1">
+                                    <CheckCircle2 className="h-3 w-3" />
+                                    On Time Submitted
+                                  </span>
+                                ) : (
+                                  <span className="flex items-center gap-1">
+                                    <XCircle className="h-3 w-3" />
+                                    {currentSubmissionStatus.message}
+                                  </span>
+                                )}
+                              </Badge>
+                            )}
+                          </div>
                           <p className="text-sm text-muted-foreground mb-4">
                             This task has been submitted for review. As a {user?.role === 'Admin' ? 'Admin' : 'Manager'}, you can approve it to mark as Done or send it back for revisions.
+                            {submissionCount > 0 && (
+                              <span className="block mt-2 font-medium">
+                                This is submission #{submissionCount} for this task.
+                              </span>
+                            )}
                           </p>
                           <div className="flex items-center gap-3">
                             <Button
@@ -576,6 +801,36 @@ export default function TaskDetailPage() {
                     </p>
                   </div>
                 </div>
+              )}
+
+              {canSubmitForReview && (
+                <Card className="border-2 border-primary/20 bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5">
+                  <CardContent className="pt-6">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-4 flex-1">
+                        <div className="p-3 rounded-full bg-primary/10">
+                          <CheckCircle2 className="h-6 w-6 text-primary" />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-lg font-bold text-foreground mb-1">
+                            Ready to Submit?
+                          </h3>
+                          <p className="text-sm text-muted-foreground mb-4">
+                            Submit this task for review. Managers and admins will review your work and approve it when complete.
+                          </p>
+                          <Button
+                            onClick={() => setIsSubmissionModalOpen(true)}
+                            className="gap-2 bg-primary hover:bg-primary/90 text-white shadow-lg"
+                            size="lg"
+                          >
+                            <CheckCircle2 className="h-5 w-5" />
+                            Submit for Review
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               )}
             </div>
           </CardContent>
@@ -1108,6 +1363,118 @@ export default function TaskDetailPage() {
           variant="destructive"
           isLoading={false}
         />
+
+        {/* Task Submission Modal */}
+        <Modal
+          isOpen={isSubmissionModalOpen}
+          onClose={() => {
+            setIsSubmissionModalOpen(false)
+            setSubmissionNotes('')
+          }}
+          onConfirm={handleSubmitForReview}
+          title="Submit Task for Review"
+          description="Submit this task for manager/admin review. You can add notes about what you've completed."
+          confirmText={isSubmitting ? "Submitting..." : "Submit for Review"}
+          cancelText="Cancel"
+          isLoading={isSubmitting}
+        >
+          <div className="space-y-4">
+            {/* Submission Count Badge */}
+            {submissionCount > 0 && (
+              <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+                  <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                    This task has been submitted <strong>{submissionCount} {submissionCount === 1 ? 'time' : 'times'}</strong> for review
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Time Tracking Summary */}
+            <div className="p-4 bg-gradient-to-r from-primary/5 to-primary/10 border border-primary/20 rounded-lg space-y-3">
+              <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <Clock className="h-4 w-4" />
+                Time Tracking Summary
+              </h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Total Time Logged</p>
+                  <p className="text-lg font-bold text-primary">
+                    {totalHoursLogged.toFixed(1)}h
+                  </p>
+                  {task?.estimate && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Estimated: {task.estimate}h
+                      {totalHoursLogged > Number(task.estimate) && (
+                        <span className="text-orange-600 dark:text-orange-400 ml-1">
+                          (+{(totalHoursLogged - Number(task.estimate)).toFixed(1)}h over)
+                        </span>
+                      )}
+                      {totalHoursLogged < Number(task.estimate) && (
+                        <span className="text-green-600 dark:text-green-400 ml-1">
+                          ({(Number(task.estimate) - totalHoursLogged).toFixed(1)}h remaining)
+                        </span>
+                      )}
+                    </p>
+                  )}
+                </div>
+                {task?.dueDate && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Due Date Status</p>
+                    {lateStatus ? (
+                      <div>
+                        <p className="text-lg font-bold text-destructive flex items-center gap-1">
+                          <XCircle className="h-4 w-4" />
+                          {lateStatus.message}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Due: {formatDate(task.dueDate)}
+                        </p>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-lg font-bold text-green-600 dark:text-green-400 flex items-center gap-1">
+                          <CheckCircle2 className="h-4 w-4" />
+                          On Time
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Due: {formatDate(task.dueDate)}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              {timeLogs.length === 0 && (
+                <p className="text-xs text-muted-foreground italic">
+                  No time has been logged for this task yet.
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="text-sm font-medium mb-2 block">
+                Submission Notes <span className="text-muted-foreground">(Optional)</span>
+              </label>
+              <Textarea
+                value={submissionNotes}
+                onChange={(e) => setSubmissionNotes(e.target.value)}
+                placeholder="Add any notes about your work, what you've completed, or any important information for reviewers..."
+                rows={6}
+                className="resize-none"
+              />
+              <p className="text-xs text-muted-foreground mt-2">
+                These notes will be added as a comment and the task will be moved to Review status.
+              </p>
+            </div>
+            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <p className="text-sm text-blue-800 dark:text-blue-200">
+                <strong>Note:</strong> Once submitted, managers and admins will review your work and can approve it to mark as Done or send it back for revisions.
+              </p>
+            </div>
+          </div>
+        </Modal>
       </div>
     </DashboardLayout>
   )
